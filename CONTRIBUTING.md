@@ -21,7 +21,7 @@ Thank you for your interest in contributing! This guide covers how to set up the
 
 | Tool | Minimum version |
 |---|---|
-| Node.js | 18 |
+| Node.js | 20.19 |
 | npm | 9 |
 | VS Code | 1.85.0 |
 
@@ -34,6 +34,8 @@ git clone https://github.com/ron-zhong/litellm-vsix.git
 cd litellm-vsix
 npm install
 ```
+
+> ℹ️ ESLint v10 requires Node.js >= 20.19.0. If lint/install fails on an older runtime, upgrade Node first.
 
 ---
 

@@ -8,10 +8,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
----
-
-## [0.3.0] — 2026-07-26
-
 ### Added
 - `LiteLLM: Configure AI Models` command — fetches available models from `/v1/models`, presents a picker, and applies the chosen model to VS Code Chat (Copilot BYOK + `chat.openaiCompatibleChatModels`) and/or Claude Code (`.claude/settings.json`).
 - `LiteLLM: Generate Commit Message` command — ✨ sparkle button in the Source Control input box; generates a conventional commit message from the staged diff using LiteLLM's chat completions endpoint.
@@ -40,7 +36,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
-[Unreleased]: https://github.com/ron-zhong/litellm-vsix/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.3.0
-[0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0
+[Unreleased]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.1.0

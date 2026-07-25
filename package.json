@@ -9,7 +9,8 @@
     "url": "https://github.com/ron-zhong/litellm-vsix.git"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.85.0",
+    "node": ">=20.19.0"
   },
   "categories": [
     "Other"
