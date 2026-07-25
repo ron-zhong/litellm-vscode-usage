@@ -61,8 +61,8 @@ export class UsagePanel {
 
     try {
       const now = new Date();
-      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
       const todayStr = now.toISOString().slice(0, 10);
+      const monthStart = `${todayStr.slice(0, 7)}-01`;
 
       const [monthLogs, dayLogs] = await Promise.all([
         fetchSpendLogs(apiBase, apiKey, monthStart, todayStr),
