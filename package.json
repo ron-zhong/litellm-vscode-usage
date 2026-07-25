@@ -1,0 +1,134 @@
+{
+  "name": "litellm-usage",
+  "displayName": "LiteLLM Usage",
+  "description": "Display your LiteLLM daily and monthly LLM usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
+  "version": "0.1.0",
+  "publisher": "litellm",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ron-zhong/litellm-vsix.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "litellm",
+    "llm",
+    "usage",
+    "budget",
+    "ai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "LiteLLM Usage",
+      "properties": {
+        "litellm.apiBase": {
+          "type": "string",
+          "default": "",
+          "description": "LiteLLM API base URL (e.g. http://localhost:4000). Falls back to LITELLM_API_BASE environment variable."
+        },
+        "litellm.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "LiteLLM API key. Falls back to LITELLM_API_KEY environment variable."
+        },
+        "litellm.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 300,
+          "minimum": 30,
+          "description": "How often (in seconds) to refresh the spend displayed in the status bar."
+        },
+        "litellm.defaultModel": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "Default model name to use when configuring VS Code Chat BYOK (e.g. gpt-4o, claude-3-5-sonnet). Must match a model available on your LiteLLM proxy."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "litellm.showUsage",
+        "title": "LiteLLM: Show Usage Dashboard"
+      },
+      {
+        "command": "litellm.showSpendDetails",
+        "title": "LiteLLM: Show Current Spend Details"
+      },
+      {
+        "command": "litellm.configureChatByok",
+        "title": "LiteLLM: Configure VS Code Chat (BYOK)"
+      },
+      {
+        "command": "litellm.refresh",
+        "title": "LiteLLM: Refresh Status Bar"
+      },
+      {
+        "command": "litellm.generateCommitMessage",
+        "title": "LiteLLM: Generate Commit Message",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "litellm.configureModels",
+        "title": "LiteLLM: Configure AI Models",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "litellm.showUsage"
+        },
+        {
+          "command": "litellm.showSpendDetails"
+        },
+        {
+          "command": "litellm.configureChatByok"
+        },
+        {
+          "command": "litellm.refresh"
+        },
+        {
+          "command": "litellm.generateCommitMessage"
+        },
+        {
+          "command": "litellm.configureModels"
+        }
+      ],
+      "scm/inputBox": [
+        {
+          "command": "litellm.generateCommitMessage",
+          "when": "scmProvider == git"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "npm run compile && mocha \"out/test/*.test.js\" \"out/test/integration/**/*.test.js\"",
+    "test:unit": "npm run compile && mocha \"out/test/*.test.js\"",
+    "test:integration": "npm run compile && mocha \"out/test/integration/**/*.test.js\"",
+    "test:e2e": "npm run compile && node out/test/e2e/runTests.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/test-electron": "^2.4.0",
+    "eslint": "^8.56.0",
+    "mocha": "^11.7.6",
+    "typescript": "^5.3.3"
+  }
+}
