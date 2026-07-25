@@ -119,7 +119,7 @@ async function showSpendDetails(): Promise<void> {
     const t = today();
     const logs = await fetchSpendLogs(conn.apiBase, conn.apiKey, t, t);
     const summary = aggregateUsage(logs);
-    todaySpend = summary.totalMonthlySpend; // total for the single queried day
+    todaySpend = summary.totalDailySpend;
   } catch {
     // Non-fatal; daily spend is optional
   }

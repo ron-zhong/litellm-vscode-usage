@@ -66,11 +66,15 @@ export async function configureChatByok(): Promise<void> {
 
     // 2. Configure github.copilot.advanced to use the custom endpoint
     //    (works for GitHub Copilot Chat BYOK)
+    const litellmConfigForModel = vscode.workspace.getConfiguration('litellm');
+    const defaultModel =
+      (litellmConfigForModel.get<string>('defaultModel') || '').trim() || 'gpt-4o';
+
     const copilotConfig = vscode.workspace.getConfiguration('github.copilot');
     await copilotConfig.update(
       'advanced',
       {
-        'debug.overrideChatEngine': 'gpt-4o',
+        'debug.overrideChatEngine': defaultModel,
         'debug.chatOverrideProxyUrl': `${apiBase}/v1/chat/completions`,
         'debug.chatOverrideApiKey': apiKey || undefined,
       },
