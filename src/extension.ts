@@ -220,9 +220,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('litellm.showSpendDetails', () => showSpendDetails()),
 
-    vscode.commands.registerCommand('litellm.configureChatByok', () => {
-      configureChatByok();
-    }),
+    vscode.commands.registerCommand('litellm.configureChatByok', () =>
+      configureChatByok()
+    ),
 
     vscode.commands.registerCommand('litellm.refresh', async () => {
       lastUserInfo = undefined;
@@ -230,13 +230,13 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.window.showInformationMessage('LiteLLM usage refreshed.');
     }),
 
-    vscode.commands.registerCommand('litellm.generateCommitMessage', () => {
-      generateCommitMessage();
-    }),
+    vscode.commands.registerCommand('litellm.generateCommitMessage', () =>
+      generateCommitMessage()
+    ),
 
-    vscode.commands.registerCommand('litellm.configureModels', () => {
-      configureModels();
-    })
+    vscode.commands.registerCommand('litellm.configureModels', () =>
+      configureModels()
+    )
   );
 
   // Initial status bar update
