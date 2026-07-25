@@ -103,27 +103,6 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
   });
 }
 
-/** A model entry returned by the LiteLLM /v1/models endpoint. */
-export interface ModelInfo {
-  id: string;
-}
-
-/**
- * Fetch the list of models available on the LiteLLM proxy.
- * Handles both the OpenAI-compatible `{ data: [...] }` envelope and bare arrays.
- */
-export async function fetchAvailableModels(apiBase: string, apiKey: string): Promise<ModelInfo[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await httpGet<any>(apiBase, apiKey, '/v1/models');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any[] = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : [];
-  return data
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((m: any) => ({ id: String(m.id ?? m.name ?? '') }))
-    .filter((m) => m.id)
-    .sort((a, b) => a.id.localeCompare(b.id));
-}
-
 /** Fetch current user information including budget and spend. */
 export async function fetchUserInfo(apiBase: string, apiKey: string): Promise<UserInfo> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -13,7 +13,6 @@ import * as assert from 'assert';
 import {
   fetchUserInfo,
   fetchSpendLogs,
-  fetchAvailableModels,
   today,
 } from '../../litellmClient';
 
@@ -33,19 +32,6 @@ describe('LiteLLM integration (requires LITELLM_API_BASE)', function () {
 
   before(function () {
     skipIfNotConfigured(this);
-  });
-
-  // ── fetchAvailableModels ───────────────────────────────────────────────────
-
-  describe('fetchAvailableModels', () => {
-    it('returns a non-empty array of model IDs', async () => {
-      const models = await fetchAvailableModels(API_BASE, API_KEY);
-      assert.ok(Array.isArray(models), 'Result should be an array');
-      assert.ok(models.length > 0, 'At least one model should be available');
-      for (const model of models) {
-        assert.ok(typeof model.id === 'string' && model.id.length > 0, 'Each model must have a non-empty id');
-      }
-    });
   });
 
   // ── fetchUserInfo ──────────────────────────────────────────────────────────

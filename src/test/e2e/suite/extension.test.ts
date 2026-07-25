@@ -14,9 +14,7 @@ const EXTENSION_ID = 'litellm.litellm-usage';
 const EXPECTED_COMMANDS = [
   'litellm.showUsage',
   'litellm.showSpendDetails',
-  'litellm.configureChatByok',
   'litellm.refresh',
-  'litellm.configureModels',
 ];
 
 describe('LiteLLM Extension — E2E', () => {

@@ -45,11 +45,6 @@
           "default": 300,
           "minimum": 30,
           "description": "How often (in seconds) to refresh the spend displayed in the status bar."
-        },
-        "litellm.defaultModel": {
-          "type": "string",
-          "default": "gpt-4o",
-          "description": "Default model name to use when configuring VS Code Chat BYOK (e.g. gpt-4o, claude-3-5-sonnet). Must match a model available on your LiteLLM proxy."
         }
       }
     },
@@ -63,17 +58,8 @@
         "title": "LiteLLM: Show Current Spend Details"
       },
       {
-        "command": "litellm.configureChatByok",
-        "title": "LiteLLM: Configure VS Code Chat (BYOK)"
-      },
-      {
         "command": "litellm.refresh",
         "title": "LiteLLM: Refresh Status Bar"
-      },
-      {
-        "command": "litellm.configureModels",
-        "title": "LiteLLM: Configure AI Models",
-        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -85,13 +71,7 @@
           "command": "litellm.showSpendDetails"
         },
         {
-          "command": "litellm.configureChatByok"
-        },
-        {
           "command": "litellm.refresh"
-        },
-        {
-          "command": "litellm.configureModels"
         }
       ]
     }

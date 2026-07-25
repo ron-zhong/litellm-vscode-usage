@@ -10,7 +10,6 @@ import * as net from 'net';
 import {
   fetchUserInfo,
   fetchSpendLogs,
-  fetchAvailableModels,
 } from '../litellmClient';
 
 // ─── Mock-server helpers ──────────────────────────────────────────────────────
@@ -196,82 +195,6 @@ describe('fetchSpendLogs', () => {
       await fetchSpendLogs(mock.apiBase, 'key', '2025-01-10', '2025-01-20');
       assert.ok(capturedPath.includes('start_date=2025-01-10'), 'start_date missing');
       assert.ok(capturedPath.includes('end_date=2025-01-20'), 'end_date missing');
-    } finally {
-      await mock.close();
-    }
-  });
-});
-
-// ─── fetchAvailableModels ─────────────────────────────────────────────────────
-
-describe('fetchAvailableModels', () => {
-  it('returns sorted model IDs from an OpenAI-compatible response', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, {
-        data: [
-          { id: 'gpt-4o', object: 'model' },
-          { id: 'claude-3-5-sonnet', object: 'model' },
-          { id: 'mistral-large', object: 'model' },
-        ],
-      });
-    });
-    try {
-      const models = await fetchAvailableModels(mock.apiBase, 'key');
-      assert.deepStrictEqual(
-        models.map((m) => m.id),
-        ['claude-3-5-sonnet', 'gpt-4o', 'mistral-large']
-      );
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('handles a bare array response', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, [{ id: 'llama-3-70b' }, { id: 'gemma-2-9b' }]);
-    });
-    try {
-      const models = await fetchAvailableModels(mock.apiBase, 'key');
-      assert.deepStrictEqual(
-        models.map((m) => m.id),
-        ['gemma-2-9b', 'llama-3-70b']
-      );
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('returns an empty array when data is empty', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, { data: [] });
-    });
-    try {
-      const models = await fetchAvailableModels(mock.apiBase, 'key');
-      assert.deepStrictEqual(models, []);
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('filters out entries with no id field', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, { data: [{ id: 'gpt-4o' }, { object: 'model' }] });
-    });
-    try {
-      const models = await fetchAvailableModels(mock.apiBase, 'key');
-      assert.strictEqual(models.length, 1);
-      assert.strictEqual(models[0].id, 'gpt-4o');
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('throws on HTTP error', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 401, { error: 'Unauthorized' });
-    });
-    try {
-      await assert.rejects(() => fetchAvailableModels(mock.apiBase, 'bad'), /HTTP 401/);
     } finally {
       await mock.close();
     }
