@@ -165,6 +165,20 @@ describe('generateCommitMessageFromDiff', () => {
       await mock.close();
     }
   });
+
+  it('preserves apiBase path prefixes for chat completions requests', async () => {
+    let capturedPath = '';
+    const mock = await startMockServer((req, res) => {
+      capturedPath = req.url ?? '';
+      jsonResponse(res, 200, { choices: [{ message: { content: 'feat: keep proxy path' } }] });
+    });
+    try {
+      await generateCommitMessageFromDiff(`${mock.apiBase}/proxy`, 'key', 'gpt-4o', 'diff');
+      assert.strictEqual(capturedPath, '/proxy/v1/chat/completions');
+    } finally {
+      await mock.close();
+    }
+  });
 });
 
 // ─── fetchUserInfo ────────────────────────────────────────────────────────────

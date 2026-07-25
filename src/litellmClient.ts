@@ -105,7 +105,7 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
 
 /** Perform an authenticated HTTP/HTTPS POST request and return the parsed JSON body. */
 async function httpPost<T>(apiBase: string, apiKey: string, path: string, body: unknown): Promise<T> {
-  const url = new URL(path, apiBase);
+  const url = new URL(path.replace(/^\/+/, ''), apiBase.endsWith('/') ? apiBase : apiBase + '/');
   const lib = url.protocol === 'https:' ? https : http;
   const payload = JSON.stringify(body);
 
