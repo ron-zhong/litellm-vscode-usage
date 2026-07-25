@@ -1,7 +1,7 @@
 {
   "name": "litellm-usage",
   "displayName": "LiteLLM Usage",
-  "description": "Display your LiteLLM daily and monthly LLM usage in VS Code.",
+  "description": "Display your LiteLLM daily and monthly LLM usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
   "version": "0.1.0",
   "publisher": "litellm",
   "repository": {
@@ -44,6 +44,11 @@
           "default": 300,
           "minimum": 30,
           "description": "How often (in seconds) to refresh the spend displayed in the status bar."
+        },
+        "litellm.defaultModel": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "Default model name to use when configuring VS Code Chat BYOK (e.g. gpt-4o, claude-3-5-sonnet). Must match a model available on your LiteLLM proxy."
         }
       }
     },
@@ -57,8 +62,22 @@
         "title": "LiteLLM: Show Current Spend Details"
       },
       {
+        "command": "litellm.configureChatByok",
+        "title": "LiteLLM: Configure VS Code Chat (BYOK)"
+      },
+      {
         "command": "litellm.refresh",
         "title": "LiteLLM: Refresh Status Bar"
+      },
+      {
+        "command": "litellm.generateCommitMessage",
+        "title": "LiteLLM: Generate Commit Message",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "litellm.configureModels",
+        "title": "LiteLLM: Configure AI Models",
+        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -70,7 +89,22 @@
           "command": "litellm.showSpendDetails"
         },
         {
+          "command": "litellm.configureChatByok"
+        },
+        {
           "command": "litellm.refresh"
+        },
+        {
+          "command": "litellm.generateCommitMessage"
+        },
+        {
+          "command": "litellm.configureModels"
+        }
+      ],
+      "scm/inputBox": [
+        {
+          "command": "litellm.generateCommitMessage",
+          "when": "scmProvider == git"
         }
       ]
     }

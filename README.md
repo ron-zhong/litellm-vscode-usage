@@ -1,6 +1,6 @@
 # LiteLLM Usage — VS Code Extension
 
-Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly in VS Code.
+Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly in VS Code and unlock AI-powered developer productivity features powered by your own LiteLLM endpoint.
 
 ---
 
@@ -11,6 +11,9 @@ Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly 
 | **Status-bar spend** | Live monthly spend badge, refreshed on a configurable interval. |
 | **Spend details** | Quick-pick popup with today's spend, monthly spend, budget %, and reset date. |
 | **Usage Dashboard** | Webview with daily & model-level spend tables. |
+| **VS Code Chat BYOK** | One-click configuration of VS Code Chat to use your LiteLLM proxy. |
+| **Configure AI Models** | Fetch your proxy's model list and apply one model to VS Code Chat and/or Claude Code in a single wizard. |
+| **Generate Commit Message** | ✨ button in the Source Control input box — generates a conventional commit message from your staged diff. |
 
 ---
 
@@ -53,7 +56,11 @@ Open **Settings → Extensions → LiteLLM Usage** or add the following to your 
   "litellm.apiKey": "sk-...",
 
   // How often (in seconds) to refresh the status-bar badge. Minimum: 30.
-  "litellm.refreshIntervalSeconds": 300
+  "litellm.refreshIntervalSeconds": 300,
+
+  // Default model used for commit-message generation and BYOK chat config.
+  // Updated automatically by "LiteLLM: Configure AI Models".
+  "litellm.defaultModel": "gpt-4o"
 }
 ```
 
@@ -67,7 +74,50 @@ Environment variables (`LITELLM_API_BASE`, `LITELLM_API_KEY`) are read at startu
 |---|---|
 | `LiteLLM: Show Usage Dashboard` | Open the webview spend dashboard |
 | `LiteLLM: Show Current Spend Details` | Quick-pick spend popup |
+| `LiteLLM: Configure VS Code Chat (BYOK)` | Wire VS Code Chat to your LiteLLM proxy |
+| `LiteLLM: Configure AI Models` | Select a model for VS Code Chat and/or Claude Code |
 | `LiteLLM: Refresh Status Bar` | Force-refresh the spend badge |
+| `LiteLLM: Generate Commit Message` | Generate a commit message from staged changes |
+
+---
+
+## Feature guide
+
+### Configure AI Models
+
+**Command palette → `LiteLLM: Configure AI Models`**
+
+The wizard:
+1. Fetches all models available on your LiteLLM proxy (`/v1/models`).
+2. Lets you pick one (or type a custom model ID if the fetch fails).
+3. Asks which AI client(s) to configure — **VS Code Chat**, **Claude Code**, or **Both**.
+4. Asks whether to save to User or Workspace settings.
+
+**VS Code Chat** — writes `litellm.defaultModel`, `github.copilot.advanced`, and `chat.openaiCompatibleChatModels` so that Copilot Chat and VS Code's built-in OpenAI-compatible chat both route through LiteLLM.
+
+**Claude Code** — writes (or merges into) `.claude/settings.json` (project) or `~/.claude/settings.json` (global) with:
+
+```jsonc
+{
+  "model": "gpt-4o",          // the model you selected
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:4000",
+    "ANTHROPIC_API_KEY": "sk-..."
+  }
+}
+```
+
+Claude Code picks up `ANTHROPIC_BASE_URL` to proxy requests through LiteLLM. The `model` field overrides the default model for that project or globally.
+
+> **Security note**: if your LiteLLM API key is written to a project-scoped `.claude/settings.json`, the extension reminds you to add `.claude/settings.json` to `.gitignore` to avoid committing credentials.
+
+### Generate Commit Message
+
+Stage some files, then click the ✨ button in the Source Control panel next to the commit message text box (or run `LiteLLM: Generate Commit Message` from the command palette). The extension sends the staged diff to LiteLLM and writes a conventional commit message directly into the input box.
+
+### Configure VS Code Chat (BYOK)
+
+Run `LiteLLM: Configure VS Code Chat (BYOK)` to write the endpoint and model into VS Code's Copilot and built-in chat settings. Reload VS Code when prompted for changes to take effect.
 
 ---
 
@@ -102,7 +152,7 @@ npm run lint
 ### Tests
 
 ```bash
-# Unit tests only — no network, no VS Code required (19 tests)
+# Unit tests only — no network, no VS Code required (31 tests)
 npm run test:unit
 
 # Unit + integration tests
@@ -196,7 +246,7 @@ ovsx create-namespace litellm --pat <OVSX_PAT>
 | **SAST** | [CodeQL](https://codeql.github.com/) runs on every push, pull request, and weekly schedule — see [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml). |
 | **Dependency scanning** | `npm audit --audit-level=high` runs in CI; [Dependabot](.github/dependabot.yml) opens automated PRs for npm packages and GitHub Actions updates weekly. |
 | **Secret scanning** | GitHub's built-in secret scanning is enabled for the repository. |
-| **Credential hygiene** | The extension never logs API keys. Credentials are stored only in VS Code settings or environment variables and are sent solely to your configured LiteLLM proxy. |
+| **Credential hygiene** | The extension never logs API keys. When writing project-scoped Claude Code settings it warns users to gitignore the file. |
 
 ---
 
