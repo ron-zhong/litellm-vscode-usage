@@ -32,8 +32,12 @@ Thank you for your interest in contributing! This guide covers how to set up the
 ```bash
 git clone https://github.com/ron-zhong/litellm-vsix.git
 cd litellm-vsix
-npm install
+npm ci
 ```
+
+`npm ci` installs exactly what `package-lock.json` pins — the same clean, reproducible install CI performs. Use it for a fresh checkout or whenever you want your dependency tree to match CI.
+
+Use `npm install` instead only when you intend to update the lockfile (e.g. after changing `package.json` dependencies). It may resolve newer versions and rewrite `package-lock.json`.
 
 > ℹ️ ESLint v10 requires Node.js >= 20.19.0. If lint/install fails on an older runtime, upgrade Node first.
 

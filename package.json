@@ -109,12 +109,13 @@
   },
   "overrides": {
     "brace-expansion": "^5.0.8",
+    "glob": "^13.0.6",
     "serialize-javascript": "^7.0.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.1.1",
+    "@types/node": "^24.13.3",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
