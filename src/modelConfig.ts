@@ -168,9 +168,20 @@ async function applyVSCodeChatModel(
 
   const chatConfig = vscode.workspace.getConfiguration('chat');
   const existingModels = chatConfig.get<object[]>('openaiCompatibleChatModels') ?? [];
+  const expectedUrl = new URL('v1/chat/completions', apiBase.endsWith('/') ? apiBase : `${apiBase}/`);
   // Replace any LiteLLM entry already pointing at this proxy
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filtered = existingModels.filter((m: any) => !m.url?.startsWith(apiBase));
+  const filtered = existingModels.filter((m: any) => {
+    if (typeof m.url !== 'string') {
+      return true;
+    }
+    try {
+      const u = new URL(m.url);
+      return !(u.origin === expectedUrl.origin && u.pathname === expectedUrl.pathname);
+    } catch {
+      return true;
+    }
+  });
   await chatConfig.update(
     'openaiCompatibleChatModels',
     [
