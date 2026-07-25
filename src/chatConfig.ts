@@ -131,12 +131,14 @@ export async function configureChatByok(): Promise<void> {
 export async function removeChatByok(configTarget: vscode.ConfigurationTarget): Promise<void> {
   const copilotConfig = vscode.workspace.getConfiguration('github.copilot');
   const existing = copilotConfig.get<Record<string, unknown>>('advanced') ?? {};
-  const {
-    'debug.overrideChatEngine': _overrideChatEngine,
-    'debug.chatOverrideProxyUrl': _chatOverrideProxyUrl,
-    'debug.chatOverrideApiKey': _chatOverrideApiKey,
-    ...remaining
-  } = existing;
+  const keysToRemove = new Set([
+    'debug.overrideChatEngine',
+    'debug.chatOverrideProxyUrl',
+    'debug.chatOverrideApiKey',
+  ]);
+  const remaining = Object.fromEntries(
+    Object.entries(existing).filter(([key]) => !keysToRemove.has(key))
+  );
   await copilotConfig.update(
     'advanced',
     Object.keys(remaining).length > 0 ? remaining : undefined,
