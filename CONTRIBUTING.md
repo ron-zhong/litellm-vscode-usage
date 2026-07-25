@@ -84,6 +84,18 @@ npm run lint
 
 Lint runs automatically in CI and must pass before a PR can be merged.
 
+### Security audit
+
+After linting, verify the dependency tree is free of known vulnerabilities:
+
+```bash
+npm install 2>&1 | tail -15 && echo "=== AUDIT ===" && npm audit 2>&1 | tail -25
+```
+
+This installs dependencies (surfacing any deprecation/install warnings) and then runs `npm audit` to print the vulnerability summary. Audit also runs automatically in CI.
+
+> ⚠️ A pull request can only be merged when `npm audit` reports **no CRITICAL or HIGH severity vulnerabilities**. If `npm audit` flags any, resolve them before requesting review — prefer adding an npm `overrides` block in `package.json` over running `npm audit fix --force`, which may apply breaking major downgrades.
+
 ### Run the extension locally
 
 1. Open the repo folder in VS Code.

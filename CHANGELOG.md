@@ -8,14 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] — 2026-07-26
+
 ### Added
 - Unit tests using a real local HTTP mock server for `fetchUserInfo` and `fetchSpendLogs` (7 new tests; 19 total).
 - Integration test suite (`npm run test:integration`) that runs against a live LiteLLM proxy and skips gracefully when `LITELLM_API_BASE` is not set.
 - End-to-end test suite (`npm run test:e2e`) using `@vscode/test-electron` that verifies extension activation and command registration inside a real VS Code instance.
 - GitHub Actions workflows: CI (`ci.yml`), CodeQL SAST (`codeql.yml`), and automated marketplace publish (`publish.yml`).
 - Dependabot configuration for weekly npm and GitHub Actions dependency updates.
-- `CONTRIBUTING.md` developer guide.
+- `CONTRIBUTING.md` developer guide, including a post-lint security-audit step that runs `npm audit` and requires zero CRITICAL/HIGH vulnerabilities before a PR can merge.
 - `CHANGELOG.md` (this file).
+
+### Security
+- Added an npm `overrides` block forcing `brace-expansion` (`^5.0.8`) and `serialize-javascript` (`^7.0.5`) to eliminate high-severity transitive vulnerabilities pulled in via mocha; `npm audit` now reports 0 vulnerabilities. Preferred over `npm audit fix --force`, which would have downgraded mocha to 8.1.3.
 
 ---
 
@@ -42,5 +49,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
-[Unreleased]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ron-zhong/litellm-vsix/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.3.0
+[0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.1.0
