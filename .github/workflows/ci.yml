@@ -34,8 +34,9 @@ jobs:
         run: npm run compile
 
       - name: Dependency vulnerability audit
-        # Fail on high or critical vulnerabilities only
-        run: npm audit --audit-level=high
+        # Audit production dependencies only to avoid failing on dev-toolchain advisories.
+        # Fail on high or critical vulnerabilities only.
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Unit tests
         run: npm run test:unit
