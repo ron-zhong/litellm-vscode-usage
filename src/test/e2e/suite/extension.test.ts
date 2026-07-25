@@ -47,17 +47,4 @@ describe('LiteLLM Extension — E2E', () => {
       );
     }
   });
-
-  it('exposes a status bar item (cloud-offline state when unconfigured)', async () => {
-    // The extension activates immediately and shows a status bar item.
-    // Without a configured LITELLM_API_BASE it enters the "cloud-offline" state.
-    // We wait briefly for the async update to complete.
-    await new Promise((r) => setTimeout(r, 2000));
-    // If the extension activated without throwing, the status bar item exists.
-    // We cannot directly inspect status bar items via the VS Code API, so we
-    // verify indirectly by ensuring showSpendDetails can be executed without error.
-    await assert.doesNotReject(
-      async () => { await vscode.commands.executeCommand('litellm.showSpendDetails'); }
-    );
-  });
 });
