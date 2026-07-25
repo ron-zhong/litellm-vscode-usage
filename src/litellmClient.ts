@@ -154,7 +154,9 @@ async function httpPost<T>(apiBase: string, apiKey: string, path: string, body: 
   });
 }
 
-/** Maximum diff size (in characters) sent to the model to avoid exceeding context limits. */
+/** Maximum diff size (in characters) sent to the model to avoid exceeding context limits.
+ *  12 000 chars covers typical diffs comfortably within common model context windows
+ *  (e.g. ~3 000 tokens at ~4 chars/token) while leaving room for the system prompt. */
 const MAX_DIFF_CHARS = 12000;
 
 /**

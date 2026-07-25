@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import { getConnectionConfig } from './config';
 import { generateCommitMessageFromDiff } from './litellmClient';
 
+// Matches the default value set in package.json for litellm.defaultModel
+const DEFAULT_MODEL = 'gpt-4o';
+
 // Minimal types for the VS Code built-in git extension API (vscode.git)
 interface GitExtension {
   getAPI(version: 1): GitAPI;
@@ -72,7 +75,7 @@ export async function generateCommitMessage(): Promise<void> {
   }
 
   const config = vscode.workspace.getConfiguration('litellm');
-  const model = (config.get<string>('defaultModel') || 'gpt-4o').trim();
+  const model = (config.get<string>('defaultModel') || DEFAULT_MODEL).trim();
 
   await vscode.window.withProgress(
     {
