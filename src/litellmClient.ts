@@ -59,7 +59,7 @@ export interface UsageSummary {
 
 /** Perform an authenticated HTTP/HTTPS GET request and return the parsed JSON body. */
 async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promise<T> {
-  const url = new URL(path, apiBase);
+  const url = new URL(path.replace(/^\/+/, ''), apiBase.endsWith('/') ? apiBase : apiBase + '/');
   const lib = url.protocol === 'https:' ? https : http;
 
   const headers: Record<string, string> = {
