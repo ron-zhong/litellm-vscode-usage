@@ -164,7 +164,7 @@ export class UsagePanel {
     <div class="summary-cards">
       <div class="card">
         <div class="card-label">Today's Spend</div>
-        <div class="card-value">$${daySummary.totalMonthlySpend.toFixed(4)}</div>
+        <div class="card-value">$${daySummary.totalDailySpend.toFixed(4)}</div>
         <div class="card-sub">${escapeHtml(todayStr)}</div>
       </div>
       <div class="card">
