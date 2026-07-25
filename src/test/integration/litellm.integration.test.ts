@@ -14,13 +14,11 @@ import {
   fetchUserInfo,
   fetchSpendLogs,
   fetchAvailableModels,
-  generateCommitMessageFromDiff,
   today,
 } from '../../litellmClient';
 
 const API_BASE = process.env['LITELLM_API_BASE'] ?? '';
 const API_KEY = process.env['LITELLM_API_KEY'] ?? '';
-const MODEL = process.env['LITELLM_TEST_MODEL'] ?? 'gpt-4o';
 
 // Skip the entire suite when no proxy is configured
 function skipIfNotConfigured(ctx: Mocha.Context): void {
@@ -87,36 +85,6 @@ describe('LiteLLM integration (requires LITELLM_API_BASE)', function () {
         assert.ok(typeof log.model === 'string', 'model must be a string');
         assert.ok(typeof log.spend === 'number', 'spend must be a number');
       }
-    });
-  });
-
-  // ── generateCommitMessageFromDiff ──────────────────────────────────────────
-
-  describe('generateCommitMessageFromDiff', () => {
-    it('generates a non-empty commit message for a simple diff', async function () {
-      // This test actually calls the LLM — skip when model is unavailable
-      const sampleDiff = `
-diff --git a/src/index.ts b/src/index.ts
-index 1234abc..5678def 100644
---- a/src/index.ts
-+++ b/src/index.ts
-@@ -1,3 +1,6 @@
- export function greet(name: string): string {
--  return 'Hello ' + name;
-+  return \`Hello, \${name}!\`;
- }
-+
-+export function goodbye(name: string): string {
-+  return \`Goodbye, \${name}!\`;
-+}
-`.trim();
-
-      const message = await generateCommitMessageFromDiff(API_BASE, API_KEY, MODEL, sampleDiff);
-      assert.ok(typeof message === 'string', 'Commit message should be a string');
-      assert.ok(message.trim().length > 0, 'Commit message should not be empty');
-      // Should be a single line (conventional commit format)
-      const lines = message.split('\n').filter((l) => l.trim());
-      assert.ok(lines.length >= 1, 'Should have at least one non-empty line');
     });
   });
 });

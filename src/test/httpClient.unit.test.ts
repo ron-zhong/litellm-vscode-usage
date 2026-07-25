@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import * as http from 'http';
 import * as net from 'net';
 import {
-  generateCommitMessageFromDiff,
   fetchUserInfo,
   fetchSpendLogs,
   fetchAvailableModels,
@@ -61,125 +60,6 @@ function jsonResponse(
   res.writeHead(statusCode, { 'Content-Type': 'application/json' });
   res.end(payload);
 }
-
-// ─── generateCommitMessageFromDiff ───────────────────────────────────────────
-
-describe('generateCommitMessageFromDiff', () => {
-  it('returns a trimmed commit message from a successful response', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, {
-        choices: [{ message: { content: '  feat: add awesome feature  ' } }],
-      });
-    });
-    try {
-      const msg = await generateCommitMessageFromDiff(mock.apiBase, 'key', 'gpt-4o', 'diff');
-      assert.strictEqual(msg, 'feat: add awesome feature');
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('throws when the server returns an HTTP 4xx error', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 401, { error: 'Unauthorized' });
-    });
-    try {
-      await assert.rejects(
-        () => generateCommitMessageFromDiff(mock.apiBase, 'bad-key', 'gpt-4o', 'diff'),
-        /HTTP 401/
-      );
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('throws when the response has no choices', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, { choices: [] });
-    });
-    try {
-      await assert.rejects(
-        () => generateCommitMessageFromDiff(mock.apiBase, 'key', 'gpt-4o', 'diff'),
-        /No commit message/
-      );
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('throws when message content is an empty string', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, { choices: [{ message: { content: '   ' } }] });
-    });
-    try {
-      await assert.rejects(
-        () => generateCommitMessageFromDiff(mock.apiBase, 'key', 'gpt-4o', 'diff'),
-        /No commit message/
-      );
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('truncates diffs longer than 12 000 characters', async () => {
-    let capturedBody: { messages?: Array<{ role: string; content: string }> } = {};
-    const mock = await startMockServer((_req, res) => {
-      // Body is captured asynchronously via mock.requests; reply inline
-      // We inspect mock.requests after the call
-      jsonResponse(res, 200, { choices: [{ message: { content: 'chore: truncated' } }] });
-    });
-    try {
-      const longDiff = 'x'.repeat(13000);
-      await generateCommitMessageFromDiff(mock.apiBase, 'key', 'gpt-4o', longDiff);
-      capturedBody = mock.requests[0] as typeof capturedBody;
-      const userMessage = capturedBody.messages?.find((m) => m.role === 'user')?.content ?? '';
-      assert.ok(
-        userMessage.includes('[diff truncated…]'),
-        'Request body should contain truncation marker'
-      );
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('sends an Authorization header when an API key is provided', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, { choices: [{ message: { content: 'fix: something' } }] });
-    });
-    try {
-      await generateCommitMessageFromDiff(mock.apiBase, 'sk-test-key', 'gpt-4o', 'diff');
-      assert.ok(mock.headers[0]?.authorization?.startsWith('Bearer '), 'Auth header should be present');
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('omits the Authorization header when no API key is provided', async () => {
-    const mock = await startMockServer((_req, res) => {
-      jsonResponse(res, 200, { choices: [{ message: { content: 'docs: update readme' } }] });
-    });
-    try {
-      await generateCommitMessageFromDiff(mock.apiBase, '', 'gpt-4o', 'diff');
-      assert.strictEqual(mock.headers[0]?.authorization, undefined);
-    } finally {
-      await mock.close();
-    }
-  });
-
-  it('preserves apiBase path prefixes for chat completions requests', async () => {
-    let capturedPath = '';
-    const mock = await startMockServer((req, res) => {
-      capturedPath = req.url ?? '';
-      jsonResponse(res, 200, { choices: [{ message: { content: 'feat: keep proxy path' } }] });
-    });
-    try {
-      await generateCommitMessageFromDiff(`${mock.apiBase}/proxy`, 'key', 'gpt-4o', 'diff');
-      assert.strictEqual(capturedPath, '/proxy/v1/chat/completions');
-    } finally {
-      await mock.close();
-    }
-  });
-});
 
 // ─── fetchUserInfo ────────────────────────────────────────────────────────────
 

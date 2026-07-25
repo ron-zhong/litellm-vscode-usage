@@ -47,7 +47,6 @@ src/
   config.ts           # Reads litellm.* settings + env-var fallbacks
   litellmClient.ts    # HTTP client + data aggregation functions
   chatConfig.ts       # VS Code Chat BYOK configuration
-  commitMessage.ts    # Generate Commit Message command
   modelConfig.ts      # Configure AI Models wizard
   usagePanel.ts       # Usage Dashboard webview
 

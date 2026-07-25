@@ -13,7 +13,6 @@ Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly 
 | **Usage Dashboard** | Webview with daily & model-level spend tables. |
 | **VS Code Chat BYOK** | One-click configuration of VS Code Chat to use your LiteLLM proxy. |
 | **Configure AI Models** | Fetch your proxy's model list and apply one model to VS Code Chat and/or Claude Code in a single wizard. |
-| **Generate Commit Message** | ✨ button in the Source Control input box — generates a conventional commit message from your staged diff. |
 
 ---
 
@@ -58,7 +57,7 @@ Open **Settings → Extensions → LiteLLM Usage** or add the following to your 
   // How often (in seconds) to refresh the status-bar badge. Minimum: 30.
   "litellm.refreshIntervalSeconds": 300,
 
-  // Default model used for commit-message generation and BYOK chat config.
+  // Default model used for BYOK chat config.
   // Updated automatically by "LiteLLM: Configure AI Models".
   "litellm.defaultModel": "gpt-4o"
 }
@@ -77,7 +76,6 @@ Environment variables (`LITELLM_API_BASE`, `LITELLM_API_KEY`) are read at startu
 | `LiteLLM: Configure VS Code Chat (BYOK)` | Wire VS Code Chat to your LiteLLM proxy |
 | `LiteLLM: Configure AI Models` | Select a model for VS Code Chat and/or Claude Code |
 | `LiteLLM: Refresh Status Bar` | Force-refresh the spend badge |
-| `LiteLLM: Generate Commit Message` | Generate a commit message from staged changes |
 
 ---
 
@@ -110,10 +108,6 @@ The wizard:
 Claude Code picks up `ANTHROPIC_BASE_URL` to proxy requests through LiteLLM. The `model` field overrides the default model for that project or globally.
 
 > **Security note**: if your LiteLLM API key is written to a project-scoped `.claude/settings.json`, the extension reminds you to add `.claude/settings.json` to `.gitignore` to avoid committing credentials.
-
-### Generate Commit Message
-
-Stage some files, then click the ✨ button in the Source Control panel next to the commit message text box (or run `LiteLLM: Generate Commit Message` from the command palette). The extension sends the staged diff to LiteLLM and writes a conventional commit message directly into the input box.
 
 ### Configure VS Code Chat (BYOK)
 

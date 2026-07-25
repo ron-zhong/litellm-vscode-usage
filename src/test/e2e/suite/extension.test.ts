@@ -16,7 +16,6 @@ const EXPECTED_COMMANDS = [
   'litellm.showSpendDetails',
   'litellm.configureChatByok',
   'litellm.refresh',
-  'litellm.generateCommitMessage',
   'litellm.configureModels',
 ];
 

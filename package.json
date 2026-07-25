@@ -71,11 +71,6 @@
         "title": "LiteLLM: Refresh Status Bar"
       },
       {
-        "command": "litellm.generateCommitMessage",
-        "title": "LiteLLM: Generate Commit Message",
-        "icon": "$(sparkle)"
-      },
-      {
         "command": "litellm.configureModels",
         "title": "LiteLLM: Configure AI Models",
         "icon": "$(settings-gear)"
@@ -96,16 +91,7 @@
           "command": "litellm.refresh"
         },
         {
-          "command": "litellm.generateCommitMessage"
-        },
-        {
           "command": "litellm.configureModels"
-        }
-      ],
-      "scm/inputBox": [
-        {
-          "command": "litellm.generateCommitMessage",
-          "when": "scmProvider == git"
         }
       ]
     }
