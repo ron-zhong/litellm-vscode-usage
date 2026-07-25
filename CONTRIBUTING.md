@@ -86,11 +86,9 @@ Lint runs automatically in CI and must pass before a PR can be merged.
 
 ### Security audit
 
-After linting, verify the dependency tree is free of known vulnerabilities:
+After linting, verify the dependency tree is free of known vulnerabilities (requires Node >= 20.19; CI uses Node 24):
 
-```bash
-npm install 2>&1 | tail -15 && echo "=== AUDIT ===" && npm audit 2>&1 | tail -25
-```
+    npm install 2>&1 | tail -15 && echo "=== AUDIT ===" && npm audit 2>&1 | tail -25
 
 This installs dependencies (surfacing any deprecation/install warnings) and then runs `npm audit` to print the vulnerability summary. Audit also runs automatically in CI.
 
