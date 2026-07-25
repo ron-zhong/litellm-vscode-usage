@@ -125,8 +125,21 @@ export async function configureChatByok(): Promise<void> {
 
 /**
  * Remove BYOK configuration written by this extension.
+ * Only the keys managed by this extension are removed; any other advanced
+ * Copilot settings the user has configured are preserved.
  */
 export async function removeChatByok(configTarget: vscode.ConfigurationTarget): Promise<void> {
   const copilotConfig = vscode.workspace.getConfiguration('github.copilot');
-  await copilotConfig.update('advanced', undefined, configTarget);
+  const existing = copilotConfig.get<Record<string, unknown>>('advanced') ?? {};
+  const {
+    'debug.overrideChatEngine': _overrideChatEngine,
+    'debug.chatOverrideProxyUrl': _chatOverrideProxyUrl,
+    'debug.chatOverrideApiKey': _chatOverrideApiKey,
+    ...remaining
+  } = existing;
+  await copilotConfig.update(
+    'advanced',
+    Object.keys(remaining).length > 0 ? remaining : undefined,
+    configTarget
+  );
 }
