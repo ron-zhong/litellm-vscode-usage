@@ -4,6 +4,10 @@
   "description": "Display your LiteLLM daily and monthly LLM usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
   "version": "0.1.0",
   "publisher": "litellm",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ron-zhong/litellm-vsix.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
