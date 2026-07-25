@@ -9,15 +9,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ## [Unreleased]
 
 ### Added
-- `LiteLLM: Configure AI Models` command — fetches available models from `/v1/models`, presents a picker, and applies the chosen model to VS Code Chat (Copilot BYOK + `chat.openaiCompatibleChatModels`) and/or Claude Code (`.claude/settings.json`).
-- `LiteLLM: Generate Commit Message` command — ✨ sparkle button in the Source Control input box; generates a conventional commit message from the staged diff using LiteLLM's chat completions endpoint.
-- Unit tests using a real local HTTP mock server for `generateCommitMessageFromDiff`, `fetchUserInfo`, `fetchSpendLogs`, and `fetchAvailableModels` (19 new tests; 31 total).
+- Unit tests using a real local HTTP mock server for `fetchUserInfo` and `fetchSpendLogs` (7 new tests; 19 total).
 - Integration test suite (`npm run test:integration`) that runs against a live LiteLLM proxy and skips gracefully when `LITELLM_API_BASE` is not set.
 - End-to-end test suite (`npm run test:e2e`) using `@vscode/test-electron` that verifies extension activation and command registration inside a real VS Code instance.
 - GitHub Actions workflows: CI (`ci.yml`), CodeQL SAST (`codeql.yml`), and automated marketplace publish (`publish.yml`).
 - Dependabot configuration for weekly npm and GitHub Actions dependency updates.
 - `CONTRIBUTING.md` developer guide.
 - `CHANGELOG.md` (this file).
+
+---
+
+## [0.2.0] — Reduce scope to focus on Usage Dashboard only
+
+### Removed
+- `LiteLLM: Configure VS Code Chat (BYOK)` command — the extension no longer modifies VS Code Chat / Copilot settings.
+- `LiteLLM: Configure AI Models` command and the model-picker wizard for VS Code Chat / Claude Code.
+- `LiteLLM: Generate Commit Message` command and the ✨ Source Control input-box button.
+- `litellm.defaultModel` setting (only consumed by the removed commands above).
+- Supporting code: `generateCommitMessageFromDiff` and `fetchAvailableModels` HTTP helpers and their unit/integration tests.
 
 ---
 
