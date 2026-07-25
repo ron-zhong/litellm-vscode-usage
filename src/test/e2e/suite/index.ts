@@ -5,7 +5,7 @@
 import * as path from 'path';
 
 // mocha is available in the extension host because it is a devDependency
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Mocha = require('mocha') as typeof import('mocha');
 
 export function run(): Promise<void> {
