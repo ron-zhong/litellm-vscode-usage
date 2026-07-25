@@ -161,7 +161,7 @@ async function applyVSCodeChatModel(
       ...existingAdvanced,
       'debug.overrideChatEngine': model,
       'debug.chatOverrideProxyUrl': `${apiBase}/v1/chat/completions`,
-      'debug.chatOverrideApiKey': apiKey || undefined,
+      ...(apiKey ? { 'debug.chatOverrideApiKey': apiKey } : {}),
     },
     configTarget
   );
