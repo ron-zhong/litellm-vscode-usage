@@ -86,10 +86,24 @@ export async function configureChatByok(): Promise<void> {
     // 3. Configure the built-in "openaiCompatibleChatModels" if present (VS Code 1.90+)
     const chatConfig = vscode.workspace.getConfiguration('chat');
     const existingModels = chatConfig.get<object[]>('openaiCompatibleChatModels') ?? [];
+    const expectedUrl = new URL('v1/chat/completions', apiBase.endsWith('/') ? apiBase : `${apiBase}/`);
     // Only add if not already present
     const alreadyConfigured = existingModels.some(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (m: any) => m.url?.startsWith(apiBase) || m.apiBase === apiBase
+      (m: any) => {
+        if (m.apiBase === apiBase) {
+          return true;
+        }
+        if (typeof m.url !== 'string') {
+          return false;
+        }
+        try {
+          const u = new URL(m.url);
+          return u.origin === expectedUrl.origin && u.pathname === expectedUrl.pathname;
+        } catch {
+          return false;
+        }
+      }
     );
     if (!alreadyConfigured) {
       await chatConfig.update(
