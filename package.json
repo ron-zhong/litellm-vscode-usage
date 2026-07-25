@@ -124,11 +124,11 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@vscode/test-electron": "^2.4.0",
-    "eslint": "^8.56.0",
+    "eslint": "^10.8.0",
     "mocha": "^11.7.6",
-    "typescript": "^5.3.3"
+    "typescript": "^7.0.2"
   }
 }
