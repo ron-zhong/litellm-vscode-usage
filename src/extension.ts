@@ -218,7 +218,14 @@ export function activate(context: vscode.ExtensionContext): void {
       UsagePanel.createOrShow(context.extensionUri, conn.apiBase, conn.apiKey);
     }),
 
-    vscode.commands.registerCommand('litellm.showSpendDetails', () => showSpendDetails()),
+    vscode.commands.registerCommand('litellm.showSpendDetails', () => {
+      showSpendDetails().catch((err: unknown) => {
+        console.error('LiteLLM showSpendDetails error:', err);
+        vscode.window.showErrorMessage(
+          'LiteLLM: Unexpected error: ' + (err instanceof Error ? err.message : String(err))
+        );
+      });
+    }),
 
     vscode.commands.registerCommand('litellm.configureChatByok', () =>
       configureChatByok()
