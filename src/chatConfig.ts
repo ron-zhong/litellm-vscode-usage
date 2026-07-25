@@ -71,9 +71,11 @@ export async function configureChatByok(): Promise<void> {
       (litellmConfigForModel.get<string>('defaultModel') || '').trim() || 'gpt-4o';
 
     const copilotConfig = vscode.workspace.getConfiguration('github.copilot');
+    const existingAdvanced = copilotConfig.get<Record<string, unknown>>('advanced') ?? {};
     await copilotConfig.update(
       'advanced',
       {
+        ...existingAdvanced,
         'debug.overrideChatEngine': defaultModel,
         'debug.chatOverrideProxyUrl': `${apiBase}/v1/chat/completions`,
         'debug.chatOverrideApiKey': apiKey || undefined,

@@ -35,7 +35,7 @@ export class UsagePanel {
       'LiteLLM Usage Dashboard',
       column || vscode.ViewColumn.One,
       {
-        enableScripts: true,
+        enableScripts: false,
         retainContextWhenHidden: true,
       }
     );

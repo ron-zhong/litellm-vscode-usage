@@ -185,7 +185,7 @@ async function showSpendDetails(): Promise<void> {
   }
 }
 
-/** Build a simple ASCII budget bar, e.g. [████████░░] 80% */
+/** Build a simple ASCII budget bar, e.g. [████████░░] */
 function buildBudgetBar(spend: number, maxBudget: number | null): string {
   if (!maxBudget || maxBudget <= 0) {
     return '';

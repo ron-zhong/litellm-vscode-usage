@@ -118,12 +118,10 @@ function writeClaudeSettings(
   apiKey: string
 ): void {
   let existing: ClaudeSettings = {};
-  if (fs.existsSync(settingsPath)) {
-    try {
-      existing = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as ClaudeSettings;
-    } catch {
-      // Overwrite corrupt file
-    }
+  try {
+    existing = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as ClaudeSettings;
+  } catch {
+    // File doesn't exist or is corrupt; start from an empty object
   }
 
   const updated: ClaudeSettings = {
@@ -156,9 +154,11 @@ async function applyVSCodeChatModel(
   await litellmConfig.update('defaultModel', model, configTarget);
 
   const copilotConfig = vscode.workspace.getConfiguration('github.copilot');
+  const existingAdvanced = copilotConfig.get<Record<string, unknown>>('advanced') ?? {};
   await copilotConfig.update(
     'advanced',
     {
+      ...existingAdvanced,
       'debug.overrideChatEngine': model,
       'debug.chatOverrideProxyUrl': `${apiBase}/v1/chat/completions`,
       'debug.chatOverrideApiKey': apiKey || undefined,
