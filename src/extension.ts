@@ -218,9 +218,7 @@ export function activate(context: vscode.ExtensionContext): void {
       UsagePanel.createOrShow(context.extensionUri, conn.apiBase, conn.apiKey);
     }),
 
-    vscode.commands.registerCommand('litellm.showSpendDetails', () => {
-      showSpendDetails();
-    }),
+    vscode.commands.registerCommand('litellm.showSpendDetails', () => showSpendDetails()),
 
     vscode.commands.registerCommand('litellm.configureChatByok', () => {
       configureChatByok();
