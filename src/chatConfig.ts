@@ -78,7 +78,7 @@ export async function configureChatByok(): Promise<void> {
         ...existingAdvanced,
         'debug.overrideChatEngine': defaultModel,
         'debug.chatOverrideProxyUrl': `${apiBase}/v1/chat/completions`,
-        'debug.chatOverrideApiKey': apiKey || undefined,
+        ...(apiKey ? { 'debug.chatOverrideApiKey': apiKey } : {}),
       },
       configTarget
     );
