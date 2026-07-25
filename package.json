@@ -64,6 +64,11 @@
       {
         "command": "litellm.refresh",
         "title": "LiteLLM: Refresh Status Bar"
+      },
+      {
+        "command": "litellm.generateCommitMessage",
+        "title": "LiteLLM: Generate Commit Message",
+        "icon": "$(sparkle)"
       }
     ],
     "menus": {
@@ -79,6 +84,15 @@
         },
         {
           "command": "litellm.refresh"
+        },
+        {
+          "command": "litellm.generateCommitMessage"
+        }
+      ],
+      "scm/inputBox": [
+        {
+          "command": "litellm.generateCommitMessage",
+          "when": "scmProvider == git"
         }
       ]
     }

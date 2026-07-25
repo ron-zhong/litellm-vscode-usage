@@ -9,6 +9,7 @@ import {
 import { getConnectionConfig } from './config';
 import { UsagePanel } from './usagePanel';
 import { configureChatByok } from './chatConfig';
+import { generateCommitMessage } from './commitMessage';
 
 // ─── Status bar item ──────────────────────────────────────────────────────────
 
@@ -228,6 +229,10 @@ export function activate(context: vscode.ExtensionContext): void {
       lastUserInfo = undefined;
       await updateStatusBar();
       vscode.window.showInformationMessage('LiteLLM usage refreshed.');
+    }),
+
+    vscode.commands.registerCommand('litellm.generateCommitMessage', () => {
+      generateCommitMessage();
     })
   );
 
