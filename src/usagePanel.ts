@@ -12,14 +12,9 @@ export class UsagePanel {
   private static readonly viewType = 'litellmUsage';
 
   private readonly _panel: vscode.WebviewPanel;
-  private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(
-    extensionUri: vscode.Uri,
-    apiBase: string,
-    apiKey: string
-  ): void {
+  public static createOrShow(apiBase: string, apiKey: string): void {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -40,17 +35,11 @@ export class UsagePanel {
       }
     );
 
-    UsagePanel.currentPanel = new UsagePanel(panel, extensionUri, apiBase, apiKey);
+    UsagePanel.currentPanel = new UsagePanel(panel, apiBase, apiKey);
   }
 
-  private constructor(
-    panel: vscode.WebviewPanel,
-    extensionUri: vscode.Uri,
-    apiBase: string,
-    apiKey: string
-  ) {
+  private constructor(panel: vscode.WebviewPanel, apiBase: string, apiKey: string) {
     this._panel = panel;
-    this._extensionUri = extensionUri;
 
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     this.refresh(apiBase, apiKey);

@@ -215,7 +215,7 @@ export function activate(context: vscode.ExtensionContext): void {
         );
         return;
       }
-      UsagePanel.createOrShow(context.extensionUri, conn.apiBase, conn.apiKey);
+      UsagePanel.createOrShow(conn.apiBase, conn.apiKey);
     }),
 
     vscode.commands.registerCommand('litellm.showSpendDetails', () => {
