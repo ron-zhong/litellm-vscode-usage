@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build, lint, and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Dependency vulnerability audit
+        # Fail on high or critical vulnerabilities only
+        run: npm audit --audit-level=high
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Integration tests
+        # Integration tests skip automatically when LITELLM_API_BASE is unset
+        run: npm test
+        env:
+          LITELLM_API_BASE: ''
+          LITELLM_API_KEY: ''
+
+      - name: End-to-end tests
+        # Requires a virtual display on Linux
+        run: xvfb-run -a npm run test:e2e
+        env:
+          # Prevents VS Code from opening browser windows during tests
+          ELECTRON_DISABLE_SANDBOX: '1'
+
+  package:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Package extension
+        run: vsce package
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: litellm-usage-vsix
+          path: '*.vsix'
+          retention-days: 7

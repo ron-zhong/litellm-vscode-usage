@@ -8,11 +8,12 @@ Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly 
 
 | Feature | Description |
 |---|---|
-| **Status-bar spend** | Live monthly spend badge in the status bar, refreshed on a configurable interval. |
-| **Spend details** | Quick-pick popup with today's spend, monthly spend, budget percentage, and reset date. |
+| **Status-bar spend** | Live monthly spend badge, refreshed on a configurable interval. |
+| **Spend details** | Quick-pick popup with today's spend, monthly spend, budget %, and reset date. |
 | **Usage Dashboard** | Webview with daily & model-level spend tables. |
-| **VS Code Chat BYOK** | One-click configuration of VS Code's built-in chat to use your LiteLLM proxy. |
-| **Generate Commit Message** | ✨ button in the Source Control input box — generates a conventional commit message from your staged diff using LiteLLM. |
+| **VS Code Chat BYOK** | One-click configuration of VS Code Chat to use your LiteLLM proxy. |
+| **Configure AI Models** | Fetch your proxy's model list and apply one model to VS Code Chat and/or Claude Code in a single wizard. |
+| **Generate Commit Message** | ✨ button in the Source Control input box — generates a conventional commit message from your staged diff. |
 
 ---
 
@@ -25,9 +26,14 @@ Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly 
 
 ## Installation
 
-Install from the VS Code Marketplace (search **LiteLLM Usage**) or from the [Open VSX Registry](https://open-vsx.org/extension/litellm/litellm-usage).
+### From the Marketplace
 
-To install from a local `.vsix` file:
+Search **LiteLLM Usage** in the VS Code Extensions view, or open it directly:
+
+- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=litellm.litellm-usage)
+- [Open VSX Registry](https://open-vsx.org/extension/litellm/litellm-usage)
+
+### From a local `.vsix` file
 
 ```bash
 code --install-extension litellm-usage-*.vsix
@@ -52,8 +58,8 @@ Open **Settings → Extensions → LiteLLM Usage** or add the following to your 
   // How often (in seconds) to refresh the status-bar badge. Minimum: 30.
   "litellm.refreshIntervalSeconds": 300,
 
-  // Model used for BYOK chat configuration and commit message generation.
-  // Must match a model available on your LiteLLM proxy.
+  // Default model used for commit-message generation and BYOK chat config.
+  // Updated automatically by "LiteLLM: Configure AI Models".
   "litellm.defaultModel": "gpt-4o"
 }
 ```
@@ -69,8 +75,49 @@ Environment variables (`LITELLM_API_BASE`, `LITELLM_API_KEY`) are read at startu
 | `LiteLLM: Show Usage Dashboard` | Open the webview spend dashboard |
 | `LiteLLM: Show Current Spend Details` | Quick-pick spend popup |
 | `LiteLLM: Configure VS Code Chat (BYOK)` | Wire VS Code Chat to your LiteLLM proxy |
+| `LiteLLM: Configure AI Models` | Select a model for VS Code Chat and/or Claude Code |
 | `LiteLLM: Refresh Status Bar` | Force-refresh the spend badge |
 | `LiteLLM: Generate Commit Message` | Generate a commit message from staged changes |
+
+---
+
+## Feature guide
+
+### Configure AI Models
+
+**Command palette → `LiteLLM: Configure AI Models`**
+
+The wizard:
+1. Fetches all models available on your LiteLLM proxy (`/v1/models`).
+2. Lets you pick one (or type a custom model ID if the fetch fails).
+3. Asks which AI client(s) to configure — **VS Code Chat**, **Claude Code**, or **Both**.
+4. Asks whether to save to User or Workspace settings.
+
+**VS Code Chat** — writes `litellm.defaultModel`, `github.copilot.advanced`, and `chat.openaiCompatibleChatModels` so that Copilot Chat and VS Code's built-in OpenAI-compatible chat both route through LiteLLM.
+
+**Claude Code** — writes (or merges into) `.claude/settings.json` (project) or `~/.claude/settings.json` (global) with:
+
+```jsonc
+{
+  "model": "gpt-4o",          // the model you selected
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:4000",
+    "ANTHROPIC_API_KEY": "sk-..."
+  }
+}
+```
+
+Claude Code picks up `ANTHROPIC_BASE_URL` to proxy requests through LiteLLM. The `model` field overrides the default model for that project or globally.
+
+> **Security note**: if your LiteLLM API key is written to a project-scoped `.claude/settings.json`, the extension reminds you to add `.claude/settings.json` to `.gitignore` to avoid committing credentials.
+
+### Generate Commit Message
+
+Stage some files, then click the ✨ button in the Source Control panel next to the commit message text box (or run `LiteLLM: Generate Commit Message` from the command palette). The extension sends the staged diff to LiteLLM and writes a conventional commit message directly into the input box.
+
+### Configure VS Code Chat (BYOK)
+
+Run `LiteLLM: Configure VS Code Chat (BYOK)` to write the endpoint and model into VS Code's Copilot and built-in chat settings. Reload VS Code when prompted for changes to take effect.
 
 ---
 
@@ -93,7 +140,7 @@ npm install
 
 ```bash
 npm run compile      # one-off TypeScript compile
-npm run watch        # watch mode
+npm run watch        # incremental watch mode
 ```
 
 ### Lint
@@ -105,20 +152,22 @@ npm run lint
 ### Tests
 
 ```bash
-# Unit tests (no network, no VS Code required)
+# Unit tests only — no network, no VS Code required (31 tests)
 npm run test:unit
 
 # Unit + integration tests
-# Integration tests are skipped automatically when LITELLM_API_BASE is not set.
+# Integration tests skip automatically when LITELLM_API_BASE is not set.
 npm test
 
 # Integration tests against a live LiteLLM proxy
 LITELLM_API_BASE=http://localhost:4000 LITELLM_API_KEY=sk-... npm run test:integration
 
-# End-to-end tests (downloads VS Code, requires a display or xvfb on Linux)
+# End-to-end tests — downloads VS Code, requires a display or xvfb on Linux
 npm run test:e2e
-# On Linux CI: xvfb-run -a npm run test:e2e
+# On headless Linux: xvfb-run -a npm run test:e2e
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for a full development guide.
 
 ### Package
 
@@ -139,36 +188,30 @@ The extension is published to two registries:
 
 ### Prerequisites
 
-1. **VS Code Marketplace** – create a publisher account at <https://marketplace.visualstudio.com/manage> and generate a Personal Access Token (PAT) with the *Marketplace → Manage* scope.
-2. **Open VSX** – create an account at <https://open-vsx.org> and generate a token under *User Settings → Access Tokens*.
+1. **VS Code Marketplace** — create a publisher account at <https://marketplace.visualstudio.com/manage> and generate a Personal Access Token (PAT) with the *Marketplace → Manage* scope.
+2. **Open VSX** — create an account at <https://open-vsx.org> and generate a token under *User Settings → Access Tokens*.
 3. Install the publishing tools:
 
 ```bash
 npm install -g @vscode/vsce ovsx
 ```
 
-### Manual publishing (one-time / hotfix)
+### Manual publishing (hotfix / first release)
 
 ```bash
-# 1. Bump the version in package.json
+# 1. Bump version
 npm version patch   # or minor / major
 
-# 2. Build
-npm run compile
-
-# 3. Publish to VS Code Marketplace
+# 2. Publish to VS Code Marketplace (packages automatically)
 vsce publish --pat <VSCE_PAT>
 
-# 4. Publish to Open VSX
-ovsx publish --pat <OVSX_PAT>
+# 3. Publish to Open VSX
+ovsx publish litellm-usage-*.vsix --pat <OVSX_PAT>
 ```
-
-> **Tip**: `vsce publish` automatically packages the extension before uploading.  
-> For Open VSX you can also pass the `.vsix` file directly: `ovsx publish litellm-usage-*.vsix --pat <OVSX_PAT>`.
 
 ### Automated publishing via GitHub Actions
 
-The included [`.github/workflows/publish.yml`](.github/workflows/publish.yml) workflow triggers automatically when you push a **version tag** (e.g. `v1.2.3`):
+Push a version tag to trigger the [publish workflow](.github/workflows/publish.yml):
 
 ```bash
 git tag v1.2.3
@@ -179,38 +222,35 @@ git push origin v1.2.3
 
 Add these in **Settings → Secrets and variables → Actions**:
 
-| Secret name | Value |
+| Secret | Value |
 |---|---|
 | `VSCE_PAT` | VS Code Marketplace Personal Access Token |
 | `OVSX_PAT` | Open VSX Personal Access Token |
 
-The workflow will:
-1. Install dependencies
-2. Compile TypeScript
-3. Run unit tests
-4. Publish to VS Code Marketplace (`vsce publish`)
-5. Publish to Open VSX (`ovsx publish`)
+The workflow installs dependencies, runs unit tests, and publishes to both registries in a single job.
 
-### First-time registration on Open VSX
+#### First-time Open VSX namespace
 
-Open VSX requires you to **claim** the namespace before the first publish:
+Open VSX requires you to claim the namespace once before the first publish:
 
 ```bash
 ovsx create-namespace litellm --pat <OVSX_PAT>
 ```
 
-Run this once from your local machine; subsequent publishes happen automatically via CI.
-
 ---
 
 ## Security & Compliance
 
-- **SAST**: [CodeQL](https://codeql.github.com/) analysis runs on every push and pull request (see [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml)).
-- **Dependency scanning**: `npm audit` runs in CI; [Dependabot](https://docs.github.com/en/code-security/dependabot) opens automated PRs for outdated or vulnerable npm packages and GitHub Actions.
-- **Secret scanning**: GitHub's built-in secret scanning is enabled for the repository.
+| Control | Details |
+|---|---|
+| **SAST** | [CodeQL](https://codeql.github.com/) runs on every push, pull request, and weekly schedule — see [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml). |
+| **Dependency scanning** | `npm audit --audit-level=high` runs in CI; [Dependabot](.github/dependabot.yml) opens automated PRs for npm packages and GitHub Actions updates weekly. |
+| **Secret scanning** | GitHub's built-in secret scanning is enabled for the repository. |
+| **Credential hygiene** | The extension never logs API keys. When writing project-scoped Claude Code settings it warns users to gitignore the file. |
 
 ---
 
 ## License
 
 [MIT](LICENSE)
+

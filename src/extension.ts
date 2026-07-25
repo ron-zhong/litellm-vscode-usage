@@ -10,6 +10,7 @@ import { getConnectionConfig } from './config';
 import { UsagePanel } from './usagePanel';
 import { configureChatByok } from './chatConfig';
 import { generateCommitMessage } from './commitMessage';
+import { configureModels } from './modelConfig';
 
 // ─── Status bar item ──────────────────────────────────────────────────────────
 
@@ -233,6 +234,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('litellm.generateCommitMessage', () => {
       generateCommitMessage();
+    }),
+
+    vscode.commands.registerCommand('litellm.configureModels', () => {
+      configureModels();
     })
   );
 

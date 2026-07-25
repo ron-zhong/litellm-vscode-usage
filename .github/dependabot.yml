@@ -1,0 +1,34 @@
+version: 2
+updates:
+  # Keep npm packages up to date
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+    open-pull-requests-limit: 10
+    groups:
+      # Group all TypeScript + ESLint tooling into a single PR
+      dev-tooling:
+        patterns:
+          - '@typescript-eslint/*'
+          - 'typescript'
+          - 'eslint'
+      # Group VS Code type definitions and test tooling
+      vscode-testing:
+        patterns:
+          - '@types/vscode'
+          - '@types/mocha'
+          - '@types/node'
+          - '@vscode/*'
+          - 'mocha'
+
+  # Keep GitHub Actions up to date
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+    open-pull-requests-limit: 5
