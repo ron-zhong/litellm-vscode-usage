@@ -226,9 +226,9 @@ export function addDayStr(dateStr: string, n: number): string {
  *
  * The summarized response is one object per day: `{"startTime":"YYYY-MM-DD",
  * "spend":<num>, "users":{...}, "models":{...}}`, zero-padded for missing days.
- * We keep `date` (normalized from `startTime` / `start_time`), `spend`, and
- * `models` (per-model spend map); extra keys are ignored. Used at most once per
- * user per calendar day (see extension.ts cache).
+ * We keep `date` (normalized from `startTime`, `start_time`, `date`, or `day`),
+ * `spend`, and `models` (per-model spend map); extra keys are ignored. Used at
+ * most once per user per calendar day (see extension.ts cache).
  */
 export async function fetchSpendLogsSummarized(
   apiBase: string,
