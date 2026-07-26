@@ -6,6 +6,24 @@
 
 ---
 
+## Implementation Roadmap
+
+```mermaid
+flowchart LR
+    FOUND["Prerequisites<br/>connection · model · refresh · branding"]
+    P1["Phase 1 — Status-bar Spend Monitor<br/>1.1 Spend badge · 1.2 Spend pop-up"]
+    P2["Phase 2 — Commit Message & Dashboard<br/>2.1 Generate commit msg · 2.2 Usage dashboard"]
+    P3["Phase 3 — Model Provider & Agents<br/>3.1 VS Code Chat · Claude Code"]
+
+    FOUND -- "settings" --> P1
+    FOUND -- "settings" --> P2
+    FOUND -- "settings" --> P3
+    P1 -- "spend context" --> P2
+    P2 -- "chat completions" --> P3
+```
+
+---
+
 ## Glossary
 
 | Term | Definition |
