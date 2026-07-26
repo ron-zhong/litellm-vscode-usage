@@ -243,7 +243,7 @@ export async function fetchSpendLogsSummarized(
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return raw.map((row: any) => ({
-    date: String(row.startTime ?? row.date ?? row.day ?? '').slice(0, 10),
+    date: String(row.startTime ?? row.start_time ?? row.date ?? row.day ?? '').slice(0, 10),
     spend: Number(row.spend ?? 0),
     models: normalizeModels(row.models),
   }));
