@@ -11,10 +11,13 @@ export interface UserBudgetInfo {
 
 export interface KeyInfo {
   key: string;
-  maxBudget: number | null;
   spend: number;
+  tpm_limit: number;
+  rpm_limit: number;
+  maxBudget: number | null;
   budgetDuration: string | null;
   budgetResetAt: string | null;
+  key_alias: string | null;
   models: string[];
 }
 
