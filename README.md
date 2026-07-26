@@ -2,6 +2,12 @@
 
 Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly in VS Code and unlock AI-powered developer productivity features powered by your own LiteLLM endpoint.
 
+<img width="290" height="61" alt="image" src="https://github.com/user-attachments/assets/19e3e9fd-647f-4c6f-965e-92b660cebda9" />
+
+<img width="875" height="296" alt="image" src="https://github.com/user-attachments/assets/fc25c7e4-4259-4f1c-bc92-8835574762f5" />
+
+<img width="1460" height="1354" alt="image" src="https://github.com/user-attachments/assets/5052f918-32a5-4ebc-a0a0-a055dcafc0cc" />
+
 ---
 
 ## Features
