@@ -108,8 +108,8 @@ export class UsagePanel {
 
     <div class="summary-cards">
       <div class="card">
-        <div class="card-label">Current Budget Spend</div>
-        <div class="card-value">$${spend.toFixed(4)}</div>
+        <div class="card-label">Current Spend</div>
+        <div class="card-value">$${spend.toFixed(2)}</div>
       </div>
       ${
         hasBudget
@@ -139,7 +139,7 @@ export class UsagePanel {
     <h2>Details</h2>
     <table>
       <tbody>
-        <tr><th>Current Budget Spend</th><td>$${spend.toFixed(4)}</td></tr>
+        <tr><th>Current Spend</th><td>$${spend.toFixed(2)}</td></tr>
         ${
           hasBudget
             ? `<tr><th>Budget Limit</th><td>$${(maxBudget as number).toFixed(2)}</td></tr>
@@ -205,7 +205,7 @@ export class UsagePanel {
 
     const monthLabel = dailySeries[0]?.date.slice(0, 7) ?? '';
     return `<h2>Month-to-Date Spend${monthLabel ? ` (${escapeHtml(monthLabel)})` : ''}</h2>
-    <p class="muted">Total (MTD): <strong>$${total.toFixed(4)}</strong> · Peak day: <strong>$${maxSpend.toFixed(4)}</strong> · oldest → newest (left → right)</p>
+    <p class="muted">Total (MTD): <strong>$${total.toFixed(2)}</strong> · Peak day: <strong>$${maxSpend.toFixed(2)}</strong> · oldest → newest (left → right)</p>
     <div class="chart-wrapper">
       <div class="chart">
         <div class="chart-y-axis">${yTickLabels}</div>
@@ -290,12 +290,12 @@ function buildBudgetBar(spend: number, maxBudget: number | null): string {
  * and per-model breakdown.
  */
 function buildDayTooltip(d: DailyPoint): string {
-  const lines = [`${d.date}`, `Spend: $${d.spend.toFixed(4)}`];
+  const lines = [`${d.date}`, `Spend: $${d.spend.toFixed(2)}`];
   const modelEntries = Object.entries(d.models).sort((a, b) => b[1] - a[1]);
   if (modelEntries.length > 0) {
     lines.push('Models:');
     for (const [model, amt] of modelEntries) {
-      lines.push(`  ${model}: $${amt.toFixed(4)}`);
+      lines.push(`  ${model}: $${amt.toFixed(2)}`);
     }
   } else {
     lines.push('Models: (none)');
@@ -309,7 +309,7 @@ function formatModelsForTable(models: Record<string, number>): string {
   if (entries.length === 0) {
     return '—';
   }
-  return entries.map(([m, amt]) => `${m} ($${amt.toFixed(4)})`).join(', ');
+  return entries.map(([m, amt]) => `${m} ($${amt.toFixed(2)})`).join(', ');
 }
 
 function escapeHtml(s: string): string {
