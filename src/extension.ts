@@ -277,14 +277,17 @@ async function showSpendDetails(): Promise<void> {
   // Render from cache when fresh (no API call). Only fetch if the cache is
   // empty / stale beyond the cooldown — and even then via the shared,
   // single-flight, cooldown-gated controller.
+  const hadError = wasError;
   let budgetInfo: BudgetInfo | undefined;
   try {
     budgetInfo = await refresh();
   } catch (err) {
-    await vscode.window.showErrorMessage(
-      `Failed to fetch ${productName} usage: ` +
-        (err instanceof Error ? err.message : String(err))
-    );
+    if (hadError) {
+      await vscode.window.showErrorMessage(
+        `Failed to fetch ${productName} usage: ` +
+          (err instanceof Error ? err.message : String(err))
+      );
+    }
     return;
   }
   if (!budgetInfo) {
