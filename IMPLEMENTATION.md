@@ -177,3 +177,135 @@ Not implemented in this delivery:
 - Phase 3 (VS Code Chat / Claude Code integration)
 
 These remain tracked in PLAN.md and can be executed next.
+
+---
+
+## Phase 1 Acceptance Checklist (With Evidence)
+
+Status legend:
+
+- Pass: implemented in code and validated by build/tests where applicable.
+- Partial: implemented with a known caveat or requirement deviation.
+
+### Prerequisites
+
+1. Startup notification appears exactly once per session
+- Status: Pass
+- Evidence:
+	- Activation notification call: [src/extension.ts](src/extension.ts#L250)
+	- Activation entrypoint: [src/extension.ts](src/extension.ts#L242)
+
+2. Env-only config works when settings are unset
+- Status: Pass
+- Evidence:
+	- Setting-over-env resolution for API base and key: [src/config.ts](src/config.ts#L28)
+
+3. Settings override env vars
+- Status: Pass
+- Evidence:
+	- Precedence implementation: [src/config.ts](src/config.ts#L28)
+
+4. litellm.defaultModel appears in Settings UI
+- Status: Pass
+- Evidence:
+	- Added config property: [package.json](package.json#L44)
+
+5. Refresh floor clamp enforced
+- Status: Pass
+- Evidence:
+	- Runtime clamp function: [src/config.ts](src/config.ts#L46)
+	- Refresh interval minimum in settings schema: [package.json](package.json#L49)
+	- Timer uses clamped value: [src/extension.ts](src/extension.ts#L285)
+
+### Packaging and Branding (Phase 1 Relevant)
+
+1. Product name string templating via displayName
+- Status: Pass
+- Evidence:
+	- Load displayName at activation: [src/extension.ts](src/extension.ts#L243)
+	- Dashboard title uses injected product name: [src/usagePanel.ts](src/usagePanel.ts#L30)
+
+2. Marketplace icon support
+- Status: Partial
+- Notes:
+	- Not added yet in this Phase 1 delivery.
+
+### Phase 1.1 Status-bar Spend Badge
+
+1. Spend badge shows USD with 2 decimals
+- Status: Pass
+- Evidence:
+	- Formatting function: [src/extension.ts](src/extension.ts#L28)
+
+2. Soft budget thresholds are constants + configurable defaults
+- Status: Pass
+- Evidence:
+	- Constants: [src/constants.ts](src/constants.ts#L4)
+	- Settings defaults: [package.json](package.json#L55)
+	- Runtime reader and normalization: [src/config.ts](src/config.ts#L55)
+
+3. Soft-budget warning/error visuals
+- Status: Pass
+- Evidence:
+	- Warning/error style mapping: [src/extension.ts](src/extension.ts#L37)
+
+4. Hard-budget warning/error visuals
+- Status: Pass (with approved endpoint variant)
+- Evidence:
+	- 80% warning and 100% forbidden state: [src/extension.ts](src/extension.ts#L54)
+	- Budget source fetch helper: [src/litellmClient.ts](src/litellmClient.ts#L273)
+- Notes:
+	- Implementation uses /v2/user/info primary, /key/info fallback per user-approved direction.
+
+5. Hard budget takes precedence over soft budget
+- Status: Pass
+- Evidence:
+	- Precedence application (hardStyle ?? softStyle): [src/extension.ts](src/extension.ts#L100)
+
+6. Data fields include spend, max_budget, budget_reset_at
+- Status: Pass
+- Evidence:
+	- Normalized budget fields: [src/litellmClient.ts](src/litellmClient.ts#L277)
+
+### Phase 1.2 Spend Details Pop-up
+
+1. Clicking status bar opens spend details popup
+- Status: Pass
+- Evidence:
+	- Status bar command binding: [src/extension.ts](src/extension.ts#L247)
+	- Command handler entry: [src/extension.ts](src/extension.ts#L265)
+
+2. Pop-up shows today spend, monthly spend, reset date
+- Status: Pass
+- Evidence:
+	- Today and monthly computation from logs: [src/extension.ts](src/extension.ts#L167)
+	- Reset date row: [src/extension.ts](src/extension.ts#L196)
+
+3. Budget % shown only when hard budget exists
+- Status: Pass
+- Evidence:
+	- Conditional budget percent row: [src/extension.ts](src/extension.ts#L184)
+
+### Non-functional Items in Phase 1 Scope
+
+1. Refresh on interval and window focus regain
+- Status: Pass
+- Evidence:
+	- Timer setup: [src/extension.ts](src/extension.ts#L286)
+	- Focus listener refresh: [src/extension.ts](src/extension.ts#L313)
+
+2. Retry policy (5xx/timeouts retried, 4xx not retried)
+- Status: Pass
+- Evidence:
+	- Retry eligibility: [src/litellmClient.ts](src/litellmClient.ts#L101)
+	- Backoff sequence and retry loop: [src/litellmClient.ts](src/litellmClient.ts#L180)
+
+3. Offline behavior with cloud-offline icon
+- Status: Pass
+- Evidence:
+	- Connection failure offline state: [src/extension.ts](src/extension.ts#L118)
+
+4. apiKey settings sync hardening (machine scope)
+- Status: Pass
+- Evidence:
+	- Machine scope: [package.json](package.json#L41)
