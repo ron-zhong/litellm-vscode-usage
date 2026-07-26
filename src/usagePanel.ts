@@ -1,28 +1,32 @@
 import * as vscode from 'vscode';
-import {
-  fetchSpendLogs,
-  aggregateUsage,
-  UsageSummary,
-  DailySpend,
-  ModelSpend,
-} from './litellmClient';
+import { BudgetInfo } from './litellmClient';
 
+/**
+ * Static webview that renders a snapshot of the current BudgetInfo fetched via
+ * GET /v2/user/info. The panel issues NO API calls of its own; it only displays
+ * the BudgetInfo handed to it (kept fresh by the extension's refresh callbacks).
+ */
 export class UsagePanel {
   public static currentPanel: UsagePanel | undefined;
   private static readonly viewType = 'litellmUsage';
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _productName: string;
+  private readonly _apiBase: string;
   private _disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(apiBase: string, apiKey: string, productName: string): void {
+  public static createOrShow(
+    info: BudgetInfo,
+    apiBase: string,
+    productName: string
+  ): void {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
 
     if (UsagePanel.currentPanel) {
       UsagePanel.currentPanel._panel.reveal(column);
-      UsagePanel.currentPanel.refresh(apiBase, apiKey);
+      UsagePanel.currentPanel.update(info);
       return;
     }
 
@@ -36,38 +40,27 @@ export class UsagePanel {
       }
     );
 
-    UsagePanel.currentPanel = new UsagePanel(panel, apiBase, apiKey, productName);
+    UsagePanel.currentPanel = new UsagePanel(panel, info, apiBase, productName);
   }
 
-  private constructor(panel: vscode.WebviewPanel, apiBase: string, apiKey: string, productName: string) {
+  private constructor(
+    panel: vscode.WebviewPanel,
+    info: BudgetInfo,
+    apiBase: string,
+    productName: string
+  ) {
     this._panel = panel;
+    this._apiBase = apiBase;
     this._productName = productName;
 
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-    this.refresh(apiBase, apiKey);
+    this._panel.webview.html = this._getHtml(info);
   }
 
-  public async refresh(apiBase: string, apiKey: string): Promise<void> {
-    this._panel.webview.html = this._getLoadingHtml();
-
-    try {
-      const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
-      const monthStart = `${todayStr.slice(0, 7)}-01`;
-
-      const [monthLogs, dayLogs] = await Promise.all([
-        fetchSpendLogs(apiBase, apiKey, monthStart, todayStr),
-        fetchSpendLogs(apiBase, apiKey, todayStr, todayStr),
-      ]);
-
-      const monthSummary = aggregateUsage(monthLogs);
-      const daySummary = aggregateUsage(dayLogs);
-
-      this._panel.webview.html = this._getHtml(monthSummary, daySummary, monthStart, todayStr);
-    } catch (err) {
-      this._panel.webview.html = this._getErrorHtml(
-        err instanceof Error ? err.message : String(err)
-      );
+  /** Re-render the panel with an updated BudgetInfo snapshot. */
+  public update(info: BudgetInfo): void {
+    if (this._panel.visible) {
+      this._panel.webview.html = this._getHtml(info);
     }
   }
 
@@ -82,63 +75,19 @@ export class UsagePanel {
     }
   }
 
-  private _getLoadingHtml(): string {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>${escapeHtml(this._productName)} Usage</title>${this._commonStyles()}</head>
-<body>
-  <div class="container">
-    <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
-    <p class="loading">Loading usage data…</p>
-  </div>
-</body>
-</html>`;
-  }
-
-  private _getErrorHtml(message: string): string {
-    return `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><title>${escapeHtml(this._productName)} Usage</title>${this._commonStyles()}</head>
-<body>
-  <div class="container">
-    <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
-    <div class="error">
-      <strong>Error loading usage data</strong><br>
-      ${escapeHtml(message)}<br><br>
-      Please verify your <code>litellm.apiBase</code> and <code>litellm.apiKey</code> settings
-      (or the <code>LITELLM_API_BASE</code> / <code>LITELLM_API_KEY</code> environment variables).
-    </div>
-  </div>
-</body>
-</html>`;
-  }
-
-  private _getHtml(
-    monthSummary: UsageSummary,
-    daySummary: UsageSummary,
-    monthStart: string,
-    todayStr: string
-  ): string {
-    const dailyRows = monthSummary.dailySpend
-      .map(
-        (d: DailySpend) =>
-          `<tr><td>${escapeHtml(d.date)}</td><td>$${d.spend.toFixed(4)}</td><td>${d.tokens.toLocaleString()}</td></tr>`
-      )
-      .join('');
-
-    const modelRows = monthSummary.modelBreakdown
-      .map(
-        (m: ModelSpend) =>
-          `<tr><td>${escapeHtml(m.model)}</td><td>$${m.spend.toFixed(4)}</td><td>${m.tokens.toLocaleString()}</td><td>${m.requests.toLocaleString()}</td></tr>`
-      )
-      .join('');
-
-    const dayModelRows = daySummary.modelBreakdown
-      .map(
-        (m: ModelSpend) =>
-          `<tr><td>${escapeHtml(m.model)}</td><td>$${m.spend.toFixed(4)}</td><td>${m.tokens.toLocaleString()}</td><td>${m.requests.toLocaleString()}</td></tr>`
-      )
-      .join('');
+  private _getHtml(info: BudgetInfo): string {
+    const spend = info.spend;
+    const maxBudget = info.maxBudget;
+    const pct =
+      maxBudget && maxBudget > 0
+        ? Math.min((spend / maxBudget) * 100, 100).toFixed(1)
+        : null;
+    const bar = maxBudget && maxBudget > 0 ? buildBudgetBar(spend, maxBudget) : '';
+    const windowLabel = info.budgetDuration ?? '—';
+    const resetLabel = info.budgetResetAt
+      ? new Date(info.budgetResetAt).toLocaleString()
+      : '—';
+    const aliasLabel = info.userAlias ?? '—';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -151,57 +100,53 @@ export class UsagePanel {
 <body>
   <div class="container">
     <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
+    <p class="subtitle">Source: <code>GET /v2/user/info</code> &middot; spend is the current budget-window total (not a calendar month).</p>
 
     <div class="summary-cards">
       <div class="card">
-        <div class="card-label">Today's Spend</div>
-        <div class="card-value">$${daySummary.totalDailySpend.toFixed(4)}</div>
-        <div class="card-sub">${escapeHtml(todayStr)}</div>
+        <div class="card-label">Current Budget Spend</div>
+        <div class="card-value">$${spend.toFixed(4)}</div>
       </div>
       <div class="card">
-        <div class="card-label">Monthly Spend</div>
-        <div class="card-value">$${monthSummary.totalMonthlySpend.toFixed(4)}</div>
-        <div class="card-sub">${escapeHtml(monthStart)} – ${escapeHtml(todayStr)}</div>
+        <div class="card-label">Budget Limit</div>
+        <div class="card-value">${maxBudget ? `$${maxBudget.toFixed(2)}` : '—'}</div>
       </div>
       <div class="card">
-        <div class="card-label">Requests Today</div>
-        <div class="card-value">${daySummary.modelBreakdown.reduce((s: number, m: ModelSpend) => s + m.requests, 0).toLocaleString()}</div>
+        <div class="card-label">Budget Used</div>
+        <div class="card-value">${pct ? `${pct}%` : '—'}</div>
       </div>
       <div class="card">
-        <div class="card-label">Requests This Month</div>
-        <div class="card-value">${monthSummary.modelBreakdown.reduce((s: number, m: ModelSpend) => s + m.requests, 0).toLocaleString()}</div>
+        <div class="card-label">Budget Window</div>
+        <div class="card-value">${escapeHtml(windowLabel)}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Resets At</div>
+        <div class="card-value small">${escapeHtml(resetLabel)}</div>
       </div>
     </div>
 
-    <h2>Today's Usage by Model</h2>
     ${
-      daySummary.modelBreakdown.length === 0
-        ? '<p class="empty">No usage data for today.</p>'
-        : `<table>
-        <thead><tr><th>Model</th><th>Spend</th><th>Tokens</th><th>Requests</th></tr></thead>
-        <tbody>${dayModelRows}</tbody>
-      </table>`
+      bar
+        ? `<h2>Budget</h2>
+    <div class="bar-row"><code>${escapeHtml(bar)}</code> ${pct ? `<span class="muted">${pct}% used</span>` : ''}</div>`
+        : ''
     }
 
-    <h2>Monthly Usage by Day</h2>
-    ${
-      monthSummary.dailySpend.length === 0
-        ? '<p class="empty">No usage data this month.</p>'
-        : `<table>
-        <thead><tr><th>Date</th><th>Spend</th><th>Tokens</th></tr></thead>
-        <tbody>${dailyRows}</tbody>
-      </table>`
-    }
+    <h2>Details</h2>
+    <table>
+      <tbody>
+        <tr><th>Current Budget Spend</th><td>$${spend.toFixed(4)}</td></tr>
+        <tr><th>Budget Limit</th><td>${maxBudget ? `$${maxBudget.toFixed(2)}` : '— (none configured)'}</td></tr>
+        <tr><th>Budget Used</th><td>${pct ? `${pct}%` : '—'}</td></tr>
+        <tr><th>Budget Duration</th><td>${escapeHtml(windowLabel)}</td></tr>
+        <tr><th>Budget Resets At</th><td>${escapeHtml(resetLabel)}</td></tr>
+        <tr><th>User/Key Alias</th><td>${escapeHtml(aliasLabel)}</td></tr>
+        <tr><th>API Base</th><td><code>${escapeHtml(this._apiBase)}</code></td></tr>
+        <tr><th>Data Source</th><td><code>${escapeHtml(info.source)}</code></td></tr>
+      </tbody>
+    </table>
 
-    <h2>Monthly Usage by Model</h2>
-    ${
-      monthSummary.modelBreakdown.length === 0
-        ? '<p class="empty">No usage data this month.</p>'
-        : `<table>
-        <thead><tr><th>Model</th><th>Spend</th><th>Tokens</th><th>Requests</th></tr></thead>
-        <tbody>${modelRows}</tbody>
-      </table>`
-    }
+    <p class="muted">This dashboard is a snapshot of the most recent refresh. It refreshes automatically every refresh interval and does not issue its own API calls.</p>
   </div>
 </body>
 </html>`;
@@ -224,8 +169,13 @@ export class UsagePanel {
   }
   h1 {
     font-size: 1.6em;
-    margin-bottom: 20px;
+    margin-bottom: 8px;
     color: var(--vscode-foreground);
+  }
+  .subtitle {
+    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground, #888);
+    margin: 0 0 20px 0;
   }
   h2 {
     font-size: 1.2em;
@@ -236,7 +186,7 @@ export class UsagePanel {
   }
   .summary-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
   }
@@ -258,10 +208,18 @@ export class UsagePanel {
     font-weight: bold;
     color: var(--vscode-textLink-foreground, #4fc1ff);
   }
-  .card-sub {
-    font-size: 0.75em;
-    color: var(--vscode-descriptionForeground, #888);
-    margin-top: 4px;
+  .card-value.small {
+    font-size: 1.1em;
+  }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.1em;
+  }
+  .bar-row code {
+    font-size: 1.2em;
+    letter-spacing: 1px;
   }
   table {
     width: 100%;
@@ -276,29 +234,31 @@ export class UsagePanel {
   th {
     background: var(--vscode-editor-inactiveSelectionBackground, #2a2d2e);
     font-weight: 600;
+    width: 40%;
+  }
+  .muted {
+    color: var(--vscode-descriptionForeground, #888);
     font-size: 0.85em;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
-  tr:hover td {
-    background: var(--vscode-list-hoverBackground, #2a2d2e);
-  }
-  .loading {
-    color: var(--vscode-descriptionForeground, #888);
-    font-style: italic;
-  }
-  .empty {
-    color: var(--vscode-descriptionForeground, #888);
-  }
-  .error {
-    background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
-    border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
-    border-radius: 4px;
-    padding: 16px;
-    line-height: 1.6;
+  code {
+    background: var(--vscode-textCodeBlock-background, #2a2d2e);
+    padding: 1px 4px;
+    border-radius: 3px;
   }
 </style>`;
   }
+}
+
+/** Build a simple ASCII budget bar, e.g. [████████░░]. Returns an empty string when maxBudget is null or <= 0. */
+function buildBudgetBar(spend: number, maxBudget: number | null): string {
+  if (!maxBudget || maxBudget <= 0) {
+    return '';
+  }
+  const pct = Math.min(spend / maxBudget, 1);
+  const total = 20;
+  const filled = Math.round(pct * total);
+  const empty = total - filled;
+  return '[' + '█'.repeat(filled) + '░'.repeat(empty) + ']';
 }
 
 function escapeHtml(s: string): string {

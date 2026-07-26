@@ -4,71 +4,21 @@ import * as http from 'http';
 const DEFAULT_TIMEOUT_MS = 15000;
 const RETRY_BACKOFF_MS = [1000, 2000];
 
-export interface UserBudgetInfo {
-  userId: string;
-  maxBudget: number | null;
-  spend: number;
-  budgetDuration: string | null;
-  budgetResetAt: string | null;
-}
-
-export interface KeyInfo {
-  key: string;
-  spend: number;
-  tpm_limit: number;
-  rpm_limit: number;
-  maxBudget: number | null;
-  budgetDuration: string | null;
-  budgetResetAt: string | null;
-  key_alias: string | null;
-  models: string[];
-}
-
-export interface UserInfo {
-  userId: string;
-  userInfo: UserBudgetInfo | null;
-  keys: KeyInfo[];
-}
-
-export interface SpendLogEntry {
-  requestId: string;
-  callType: string;
-  model: string;
-  spend: number;
-  totalTokens: number;
-  promptTokens: number;
-  completionTokens: number;
-  startTime: string;
-  endTime: string;
-  userId: string | null;
-}
-
-export interface DailySpend {
-  date: string;
-  spend: number;
-  tokens: number;
-}
-
-export interface ModelSpend {
-  model: string;
-  spend: number;
-  tokens: number;
-  requests: number;
-}
-
-export interface UsageSummary {
-  dailySpend: DailySpend[];
-  modelBreakdown: ModelSpend[];
-  totalMonthlySpend: number;
-  totalDailySpend: number;
-}
-
+/**
+ * Normalized budget information fetched from GET /v2/user/info.
+ *
+ * `spend` is the spend accumulated within the user's *current budget window*
+ * (e.g. a rolling 30-day window when `budget_duration=30d`), NOT a calendar
+ * month. Callers should label it accordingly and surface `budgetDuration` /
+ * `budgetResetAt` so the window is never misread.
+ */
 export interface BudgetInfo {
   spend: number;
   maxBudget: number | null;
+  budgetDuration: string | null;
   budgetResetAt: string | null;
-  keyAlias: string | null;
-  source: '/v2/user/info' | '/key/info';
+  userAlias: string | null;
+  source: '/v2/user/info';
 }
 
 export class LiteLLMHttpError extends Error {
@@ -204,143 +154,22 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
   });
 }
 
-/** Fetch current user information including budget and spend. */
-export async function fetchUserInfo(apiBase: string, apiKey: string): Promise<UserInfo> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await httpGet<any>(apiBase, apiKey, '/user/info');
-
-  const userBudget: UserBudgetInfo | null = raw.user_info
-    ? {
-        userId: raw.user_info.user_id ?? '',
-        maxBudget: raw.user_info.max_budget ?? null,
-        spend: raw.user_info.spend ?? 0,
-        budgetDuration: raw.user_info.budget_duration ?? null,
-        budgetResetAt: raw.user_info.budget_reset_at ?? null,
-      }
-    : null;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const keys: KeyInfo[] = (raw.keys ?? []).map((k: any) => ({
-    key: k.token ?? k.key ?? '',
-    tpm_limit: k.tpm_limit ?? 0,
-    rpm_limit: k.rpm_limit ?? 0,
-    maxBudget: k.max_budget ?? null,
-    spend: k.spend ?? 0,
-    budgetDuration: k.budget_duration ?? null,
-    budgetResetAt: k.budget_reset_at ?? null,
-    key_alias: k.key_alias ?? null,
-    models: k.models ?? [],
-  }));
-
-  return {
-    userId: raw.user_id ?? '',
-    userInfo: userBudget,
-    keys,
-  };
-}
-
-/** Fetch spend logs between two dates (YYYY-MM-DD). */
-export async function fetchSpendLogs(
-  apiBase: string,
-  apiKey: string,
-  startDate: string,
-  endDate: string
-): Promise<SpendLogEntry[]> {
-  const path = `/spend/logs?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&summarize=false`;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await httpGet<any[]>(apiBase, apiKey, path);
-
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return raw.map((entry: any) => ({
-    requestId: entry.request_id ?? '',
-    callType: entry.call_type ?? '',
-    model: entry.model ?? '',
-    spend: entry.spend ?? 0,
-    totalTokens: entry.total_tokens ?? 0,
-    promptTokens: entry.prompt_tokens ?? 0,
-    completionTokens: entry.completion_tokens ?? 0,
-    startTime: entry.startTime ?? entry.start_time ?? '',
-    endTime: entry.endTime ?? entry.end_time ?? '',
-    userId: entry.user ?? null,
-  }));
-}
-
-/** Fetch user budget from /v2/user/info first, fallback to /key/info for compatibility. */
+/**
+ * Fetch the current budget-window spend and limits from GET /v2/user/info.
+ *
+ * This is the single source of truth for the extension. The `/key/info`
+ * fallback was removed in v1.0.2 per the requirement to use only
+ * `/v2/user/info`; deployments must expose this endpoint.
+ */
 export async function fetchBudgetInfo(apiBase: string, apiKey: string): Promise<BudgetInfo> {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = await httpGet<any>(apiBase, apiKey, '/v2/user/info');
-    return {
-      spend: raw.spend ?? 0,
-      maxBudget: raw.max_budget ?? null,
-      budgetResetAt: raw.budget_reset_at ?? null,
-      keyAlias: null,
-      source: '/v2/user/info',
-    };
-  } catch {
-    // Fallback for deployments where v2 endpoint is unavailable/disabled.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = await httpGet<any>(apiBase, apiKey, '/key/info');
-    return {
-      spend: raw.spend ?? 0,
-      maxBudget: raw.max_budget ?? null,
-      budgetResetAt: raw.budget_reset_at ?? null,
-      keyAlias: raw.key_alias ?? null,
-      source: '/key/info',
-    };
-  }
-}
-
-/** Aggregate spend logs into daily and model-level summaries. */
-export function aggregateUsage(logs: SpendLogEntry[]): UsageSummary {
-  const dailyMap = new Map<string, { spend: number; tokens: number }>();
-  const modelMap = new Map<string, { spend: number; tokens: number; requests: number }>();
-
-  for (const log of logs) {
-    const date = (log.startTime || '').slice(0, 10);
-    if (date) {
-      const existing = dailyMap.get(date) ?? { spend: 0, tokens: 0 };
-      dailyMap.set(date, {
-        spend: existing.spend + log.spend,
-        tokens: existing.tokens + log.totalTokens,
-      });
-    }
-
-    const model = log.model || 'unknown';
-    const existingModel = modelMap.get(model) ?? { spend: 0, tokens: 0, requests: 0 };
-    modelMap.set(model, {
-      spend: existingModel.spend + log.spend,
-      tokens: existingModel.tokens + log.totalTokens,
-      requests: existingModel.requests + 1,
-    });
-  }
-
-  const dailySpend: DailySpend[] = Array.from(dailyMap.entries())
-    .map(([date, v]) => ({ date, spend: v.spend, tokens: v.tokens }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  const modelBreakdown: ModelSpend[] = Array.from(modelMap.entries())
-    .map(([model, v]) => ({ model, spend: v.spend, tokens: v.tokens, requests: v.requests }))
-    .sort((a, b) => b.spend - a.spend);
-
-  const today = new Date().toISOString().slice(0, 10);
-  const totalDailySpend = dailyMap.get(today)?.spend ?? 0;
-  const totalMonthlySpend = dailySpend.reduce((sum, d) => sum + d.spend, 0);
-
-  return { dailySpend, modelBreakdown, totalMonthlySpend, totalDailySpend };
-}
-
-/** Return today's date string (YYYY-MM-DD). */
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/** Return the first day of the current month (YYYY-MM-DD). */
-export function startOfMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = await httpGet<any>(apiBase, apiKey, '/v2/user/info');
+  return {
+    spend: raw.spend ?? 0,
+    maxBudget: raw.max_budget ?? null,
+    budgetDuration: raw.budget_duration ?? null,
+    budgetResetAt: raw.budget_reset_at ?? null,
+    userAlias: raw.user_alias ?? null,
+    source: '/v2/user/info',
+  };
 }

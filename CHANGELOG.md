@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.0.2] — Single-endpoint, throttle-protected spend monitor
+
+### Changed
+- **Single data source:** the extension now uses `GET /v2/user/info` only for spend and budget data. The `/key/info` fallback and all `/spend/logs` calls have been removed. `BudgetInfo` now also carries `budgetDuration` and `userAlias`.
+- **Throttle + single-flight:** all API access goes through one cooldown-gated, single-flight `refresh()` (`src/refreshController.ts`). Concurrent UI actions share a single in-flight request, and re-fetching is blocked for `refreshIntervalSeconds` while data is fresh.
+- **Status bar / pop-up / dashboard render from cache** and issue no API calls of their own when data is fresh. The pop-up and dashboard now show the current budget-window spend, budget limit, % used (with bar), budget window, and reset date.
+- **Manual `Refresh` is cooldown-gated:** if called recently it informs the user when the next refresh is allowed instead of firing.
+- **Activation jitter:** the first fetch is delayed by up to 10s (`ACTIVATION_JITTER_MS`) so 150–200 workspaces starting together don't hit the proxy in the same second.
+
+### Removed
+- `fetchSpendLogs`, `aggregateUsage`, `fetchUserInfo`, and their types/helpers (`SpendLogEntry`, `DailySpend`, `ModelSpend`, `UsageSummary`, `today`, `startOfMonth`) are deleted as unused.
+- The `vscode.window.onDidChangeWindowState` refresh handler (was the largest call multiplier).
+- The dashboard's daily and per-model spend tables (they came from `/spend/logs`).
+
+### Fixed
+- Steady-state proxy load reduced to ~1 call per user per refresh interval (default 300s). Failed fetches advance the cooldown to prevent retry storms; error toasts fire only on a success→error transition.
+
+### Security
+- `npm audit` reports 0 vulnerabilities.
+
+---
+
 ## [1.0.0] — Phase 1 milestone release
 
 ### Added
@@ -69,6 +91,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
+[1.0.2]: https://github.com/ron-zhong/litellm-vsix/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.1.0

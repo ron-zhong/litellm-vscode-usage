@@ -1,29 +1,24 @@
 import * as vscode from 'vscode';
-import {
-  fetchBudgetInfo,
-  fetchSpendLogs,
-  aggregateUsage,
-  today,
-  startOfMonth,
-  BudgetInfo,
-  LiteLLMHttpError,
-} from './litellmClient';
+import { fetchBudgetInfo, BudgetInfo, LiteLLMHttpError } from './litellmClient';
+import { makeRefreshController, RefreshController } from './refreshController';
 import {
   getConnectionConfig,
   getRefreshIntervalSeconds,
   getSoftBudgetThresholds,
 } from './config';
-import {
-  STARTUP_NOTIFICATION_TEXT,
-} from './constants';
+import { ACTIVATION_JITTER_MS, STARTUP_NOTIFICATION_TEXT } from './constants';
 import { UsagePanel } from './usagePanel';
 
-// ─── Status bar item ──────────────────────────────────────────────────────────
+// ─── Module state ─────────────────────────────────────────────────────────────
 
 let statusBarItem: vscode.StatusBarItem | undefined;
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
-let lastBudgetInfo: BudgetInfo | undefined;
 let productName = 'LiteLLM';
+let controller: RefreshController | undefined;
+/** Last fetch error, for rendering the status bar / pop-up. Cleared on success. */
+let lastError: unknown | undefined;
+/** Tracks success→error transitions so we don't toast the same failure repeatedly. */
+let wasError = false;
 
 function formatSpend(amount: number): string {
   return `$${amount.toFixed(2)}`;
@@ -71,8 +66,12 @@ function resolveHardBudgetStyle(spend: number, maxBudget: number | null): Status
   return null;
 }
 
-/** Update the status bar with the current monthly spend. */
-async function updateStatusBar(): Promise<void> {
+/**
+ * Re-render the status bar purely from the cached BudgetInfo / error state.
+ *
+ * This NEVER triggers an API call. All fetching goes through `refresh()`.
+ */
+function renderStatusBar(): void {
   if (!statusBarItem) {
     return;
   }
@@ -82,55 +81,113 @@ async function updateStatusBar(): Promise<void> {
     statusBarItem.text = `$(cloud-offline) ${productName}`;
     statusBarItem.tooltip = `${productName}: API not configured. Click to set up.`;
     statusBarItem.command = 'litellm.showSpendDetails';
+    statusBarItem.backgroundColor = undefined;
     statusBarItem.show();
     return;
   }
 
-  statusBarItem.text = `$(sync~spin) ${productName}`;
+  const budgetInfo = controller?.getCache();
+
+  if (!budgetInfo) {
+    // No data yet. Show an error state if we have one, otherwise "loading".
+    if (lastError) {
+      const message = lastError instanceof Error ? lastError.message : String(lastError);
+      if (lastError instanceof LiteLLMHttpError && (lastError.isNetworkError || lastError.isTimeout)) {
+        statusBarItem.text = `$(cloud-offline) ${productName}`;
+        statusBarItem.tooltip = `${productName}: Connection failed. ${message}`;
+      } else {
+        statusBarItem.text = `$(warning) ${productName}`;
+        statusBarItem.tooltip = `${productName}: Failed to fetch usage data. ${message}`;
+      }
+      statusBarItem.backgroundColor = undefined;
+    } else {
+      statusBarItem.text = `$(sync~spin) ${productName}`;
+      statusBarItem.tooltip = `${productName}: Loading usage data…`;
+      statusBarItem.backgroundColor = undefined;
+    }
+    statusBarItem.command = 'litellm.showSpendDetails';
+    statusBarItem.show();
+    return;
+  }
+
+  const spend = budgetInfo.spend;
+  const maxBudget = budgetInfo.maxBudget;
+
+  const spendLabel = formatSpend(spend);
+  const hardStyle = resolveHardBudgetStyle(spend, maxBudget);
+  const softStyle = resolveSoftBudgetStyle(spend);
+  const finalStyle = hardStyle ?? softStyle;
+
+  if (maxBudget !== null && maxBudget > 0) {
+    const pct = Math.min((spend / maxBudget) * 100, 100).toFixed(1);
+    statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel} (${pct}%)`;
+    const windowLabel = budgetInfo.budgetDuration ? ` · ${budgetInfo.budgetDuration} window` : '';
+    statusBarItem.tooltip = `${productName} budget spend: ${spendLabel} / $${maxBudget.toFixed(2)} (${pct}% used${windowLabel}). Click for details.`;
+  } else {
+    statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel}`;
+    const windowLabel = budgetInfo.budgetDuration ? ` (${budgetInfo.budgetDuration} window)` : '';
+    statusBarItem.tooltip = `${productName} budget spend: ${spendLabel}${windowLabel}. Click for details.`;
+  }
+
+  statusBarItem.command = 'litellm.showSpendDetails';
+  statusBarItem.backgroundColor = finalStyle.backgroundColor;
   statusBarItem.show();
+}
 
-  try {
-    const budgetInfo = await fetchBudgetInfo(conn.apiBase, conn.apiKey);
-    lastBudgetInfo = budgetInfo;
+/**
+ * Fetcher used by the refresh controller. Reads the live connection config so
+ * config changes are picked up automatically. Throws when not configured; the
+ * host guards `refresh()` calls so the fetcher normally runs only when a
+ * connection exists.
+ */
+async function budgetFetcher(): Promise<BudgetInfo> {
+  const conn = getConnectionConfig();
+  if (!conn) {
+    throw new LiteLLMHttpError('API base URL is not configured', { statusCode: null });
+  }
+  return fetchBudgetInfo(conn.apiBase, conn.apiKey);
+}
 
-    const spend = budgetInfo.spend;
-    const maxBudget = budgetInfo.maxBudget;
+function onResult(info: BudgetInfo): void {
+  lastError = undefined;
+  wasError = false;
+  renderStatusBar();
+  // Keep any open dashboard in sync without extra API calls.
+  UsagePanel.currentPanel?.update(info);
+}
 
-    const spendLabel = formatSpend(spend);
-    const hardStyle = resolveHardBudgetStyle(spend, maxBudget);
-    const softStyle = resolveSoftBudgetStyle(spend);
-    const finalStyle = hardStyle ?? softStyle;
-
-    if (maxBudget !== null && maxBudget > 0) {
-      const pct = Math.min((spend / maxBudget) * 100, 100).toFixed(1);
-      statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel} (${pct}%)`;
-      statusBarItem.tooltip = `${productName} spend: ${spendLabel} / $${maxBudget.toFixed(2)} (${pct}% used). Click for details.`;
-    } else {
-      statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel}`;
-      statusBarItem.tooltip = `${productName} spend: ${spendLabel}. Click for details.`;
-    }
-
-    statusBarItem.command = 'litellm.showSpendDetails';
-    statusBarItem.backgroundColor = finalStyle.backgroundColor;
-  } catch (err) {
+function onError(err: unknown): void {
+  lastError = err;
+  renderStatusBar();
+  // Toast only on the success→error transition to avoid spamming.
+  if (!wasError) {
+    wasError = true;
     const message = err instanceof Error ? err.message : String(err);
-
-    if (err instanceof LiteLLMHttpError && (err.isNetworkError || err.isTimeout)) {
-      statusBarItem.text = `$(cloud-offline) ${productName}`;
-      statusBarItem.tooltip = `${productName}: Connection failed. ${message}`;
-    } else {
-      statusBarItem.text = `$(warning) ${productName}`;
-      statusBarItem.tooltip = `${productName}: Failed to fetch usage data. ${message}`;
-    }
-
-    statusBarItem.command = 'litellm.showSpendDetails';
-    statusBarItem.backgroundColor = undefined;
-
     vscode.window.showErrorMessage(`${productName}: ${message}`);
   }
 }
 
-/** Show a quick-pick detail popup for the current spend. */
+/**
+ * Cooldown-gated, single-flight refresh. Returns the cached BudgetInfo when
+ * fresh. This is the ONLY path that talks to the proxy.
+ */
+function refresh(opts?: { force?: boolean }): Promise<BudgetInfo | undefined> {
+  if (!controller) {
+    return Promise.resolve(undefined);
+  }
+  const conn = getConnectionConfig();
+  if (!conn) {
+    renderStatusBar();
+    return Promise.resolve(undefined);
+  }
+  return controller.refresh(opts).catch((err: unknown) => {
+    // Swallow here; onError already rendered + toasted. Re-throw is handled by
+    // callers that need the value (pop-up, dashboard) via their own await.
+    throw err;
+  });
+}
+
+/** Show a quick-pick detail popup for the current budget spend. */
 async function showSpendDetails(): Promise<void> {
   const conn = getConnectionConfig();
   if (!conn) {
@@ -144,65 +201,68 @@ async function showSpendDetails(): Promise<void> {
     return;
   }
 
-  // Fetch fresh budget info if we don't have it yet
-  let budgetInfo = lastBudgetInfo;
-  if (!budgetInfo) {
-    try {
-      budgetInfo = await fetchBudgetInfo(conn.apiBase, conn.apiKey);
-      lastBudgetInfo = budgetInfo;
-    } catch (err) {
-      await vscode.window.showErrorMessage(
-        `Failed to fetch ${productName} usage: ` +
-          (err instanceof Error ? err.message : String(err))
-      );
-      return;
-    }
-  }
-
-  let todaySpend = 0;
-  let monthSpend = 0;
+  // Render from cache when fresh (no API call). Only fetch if the cache is
+  // empty / stale beyond the cooldown — and even then via the shared,
+  // single-flight, cooldown-gated controller.
+  let budgetInfo: BudgetInfo | undefined;
   try {
-    const t = today();
-    const monthStart = startOfMonth();
-    const [dayLogs, monthLogs] = await Promise.all([
-      fetchSpendLogs(conn.apiBase, conn.apiKey, t, t),
-      fetchSpendLogs(conn.apiBase, conn.apiKey, monthStart, t),
-    ]);
-    todaySpend = aggregateUsage(dayLogs).totalDailySpend;
-    monthSpend = aggregateUsage(monthLogs).totalMonthlySpend;
+    budgetInfo = await refresh();
   } catch (err) {
-    vscode.window.showErrorMessage(
-      `Failed to fetch ${productName} spend logs: ` +
+    await vscode.window.showErrorMessage(
+      `Failed to fetch ${productName} usage: ` +
         (err instanceof Error ? err.message : String(err))
     );
+    return;
+  }
+  if (!budgetInfo) {
+    budgetInfo = controller?.getCache();
+  }
+  if (!budgetInfo) {
+    // No cached data. Surface a prior failure if we have one; otherwise the
+    // initial jittered fetch is still pending.
+    if (lastError) {
+      await vscode.window.showErrorMessage(
+        `Failed to fetch ${productName} usage: ` +
+          (lastError instanceof Error ? lastError.message : String(lastError))
+      );
+    } else {
+      vscode.window.showInformationMessage(
+        `${productName}: usage data is still loading. Try again shortly.`
+      );
+    }
+    return;
   }
 
   const spend = budgetInfo.spend;
   const maxBudget = budgetInfo.maxBudget;
   const resetAt = budgetInfo.budgetResetAt;
+  const window = budgetInfo.budgetDuration;
+  const alias = budgetInfo.userAlias;
 
   const pct =
     maxBudget && maxBudget > 0
-      ? `${Math.min((monthSpend / maxBudget) * 100, 100).toFixed(1)}% used`
+      ? `${Math.min((spend / maxBudget) * 100, 100).toFixed(1)}% used`
       : null;
 
-  const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(monthSpend, maxBudget) : '';
+  const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(spend, maxBudget) : '';
 
   const lines: string[] = [
-    `Today's Spend : ${formatSpend(todaySpend)}`,
-    `Monthly Spend : ${formatSpend(monthSpend)}${maxBudget ? ` / $${maxBudget.toFixed(2)}` : ''}`,
-    pct ? `Budget Usage  : ${pct}` : '',
-    budgetBar ? `Budget        : ${budgetBar}` : '',
-    resetAt ? `Resets At     : ${new Date(resetAt).toLocaleString()}` : '',
-    `Current Spend : ${formatSpend(spend)} (${budgetInfo.source})`,
-    `API Base      : ${conn.apiBase}`,
+    `Current Budget Spend : ${formatSpend(spend)}`,
+    maxBudget ? `Budget Limit        : $${maxBudget.toFixed(2)}` : '',
+    pct ? `Budget Used         : ${pct}` : '',
+    budgetBar ? `Budget              : ${budgetBar}` : '',
+    window ? `Budget Window        : ${window}` : '',
+    resetAt ? `Resets At           : ${new Date(resetAt).toLocaleString()}` : '',
+    alias ? `User/Key Alias      : ${alias}` : '',
+    `Data Source         : ${budgetInfo.source}`,
+    `API Base            : ${conn.apiBase}`,
   ].filter(Boolean);
 
   const items: vscode.QuickPickItem[] = [
     { label: `$(account) ${productName} Usage Summary`, kind: vscode.QuickPickItemKind.Separator },
     ...lines.map((l) => ({ label: l })),
     { label: '', kind: vscode.QuickPickItemKind.Separator },
-    { label: '$(graph) Open Usage Dashboard', description: 'View daily and monthly charts' },
+    { label: '$(graph) Open Usage Dashboard', description: 'View budget summary' },
     { label: '$(refresh) Refresh', description: 'Refresh status bar now' },
     { label: '$(settings-gear) Open Settings', description: 'Edit LiteLLM settings' },
   ];
@@ -249,9 +309,18 @@ export function activate(context: vscode.ExtensionContext): void {
 
   vscode.window.showInformationMessage(STARTUP_NOTIFICATION_TEXT);
 
+  // Single, process-wide refresh controller. Owns the BudgetInfo cache and
+  // enforces cooldown + single-flight for every API call.
+  controller = makeRefreshController({
+    getIntervalMs: () => getRefreshIntervalSeconds() * 1000,
+    fetcher: budgetFetcher,
+    onResult,
+    onError,
+  });
+
   // Register commands
   context.subscriptions.push(
-    vscode.commands.registerCommand('litellm.showUsage', () => {
+    vscode.commands.registerCommand('litellm.showUsage', async () => {
       const conn = getConnectionConfig();
       if (!conn) {
         vscode.window.showWarningMessage(
@@ -259,7 +328,34 @@ export function activate(context: vscode.ExtensionContext): void {
         );
         return;
       }
-      UsagePanel.createOrShow(conn.apiBase, conn.apiKey, productName);
+      // Ensure cache is populated (gated; no call when fresh). Open the panel
+      // with the snapshot — the panel itself issues no API calls.
+      let info: BudgetInfo | undefined;
+      try {
+        info = await refresh();
+      } catch (err) {
+        vscode.window.showErrorMessage(
+          `Failed to fetch ${productName} usage: ` + (err instanceof Error ? err.message : String(err))
+        );
+        return;
+      }
+      if (!info) {
+        info = controller?.getCache();
+      }
+      if (!info) {
+        if (lastError) {
+          vscode.window.showErrorMessage(
+            `Failed to fetch ${productName} usage: ` +
+              (lastError instanceof Error ? lastError.message : String(lastError))
+          );
+        } else {
+          vscode.window.showInformationMessage(
+            `${productName}: usage data is still loading. Try again shortly.`
+          );
+        }
+        return;
+      }
+      UsagePanel.createOrShow(info, conn.apiBase, productName);
     }),
 
     vscode.commands.registerCommand('litellm.showSpendDetails', () => {
@@ -271,53 +367,104 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     }),
 
+    // Manual refresh is also cooldown-gated per the v1.0.2 requirement. If a
+    // fetch has settled recently and we already have data, we do NOT fire and
+    // instead tell the user when the next refresh is allowed. When there is no
+    // data yet (first use) the controller always fires regardless of cooldown.
     vscode.commands.registerCommand('litellm.refresh', async () => {
-      lastBudgetInfo = undefined;
-      await updateStatusBar();
-      vscode.window.showInformationMessage(`${productName} usage refreshed.`);
+      const conn = getConnectionConfig();
+      if (!conn) {
+        vscode.window.showWarningMessage(
+          `${productName} is not configured. Please set litellm.apiBase first.`
+        );
+        return;
+      }
+      if (!controller) {
+        return;
+      }
+      const waitMs = controller.msUntilNextRefresh();
+      if (waitMs > 0 && controller.getCache() !== undefined) {
+        vscode.window.showInformationMessage(
+          `${productName}: Refreshed recently. Next refresh available in ~${Math.max(
+            1,
+            Math.round(waitMs / 1000)
+          )}s.`
+        );
+        return;
+      }
+      try {
+        await controller.refresh();
+        vscode.window.showInformationMessage(`${productName} usage refreshed.`);
+      } catch (err) {
+        // Error already rendered/toasted via onError; no extra toast here.
+        vscode.window.showInformationMessage(
+          `${productName}: refresh failed — ` + (err instanceof Error ? err.message : String(err))
+        );
+      }
     })
   );
 
-  // Initial status bar update
-  updateStatusBar();
+  // Initial status render (no data yet), then a jittered first fetch so 200
+  // workspaces don't all hit the proxy in the same instant.
+  renderStatusBar();
+  const jitter = Math.floor(Math.random() * ACTIVATION_JITTER_MS);
+  setTimeout(() => {
+    refresh({ force: true }).catch(() => {
+      /* error already handled in onError */
+    });
+  }, jitter);
 
-  // Periodic refresh
+  // Periodic refresh via the gated controller (no call within cooldown).
   const intervalSeconds = getRefreshIntervalSeconds();
   refreshTimer = setInterval(() => {
-    updateStatusBar();
+    refresh().catch(() => {
+      /* handled */
+    });
   }, intervalSeconds * 1000);
 
-  // Re-read config when workspace configuration changes
+  // Re-read config when workspace configuration changes.
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('litellm')) {
-        lastBudgetInfo = undefined;
+      if (!e.affectsConfiguration('litellm')) {
+        return;
+      }
 
-        // Reset the timer with new interval if it changed
-        if (e.affectsConfiguration('litellm.refreshIntervalSeconds')) {
-          if (refreshTimer !== undefined) {
-            clearInterval(refreshTimer);
-          }
-          const newInterval = getRefreshIntervalSeconds();
-          refreshTimer = setInterval(() => {
-            updateStatusBar();
-          }, newInterval * 1000);
+      // Reschedule the timer if the interval changed.
+      if (e.affectsConfiguration('litellm.refreshIntervalSeconds')) {
+        if (refreshTimer !== undefined) {
+          clearInterval(refreshTimer);
         }
-
-        updateStatusBar();
+        const newInterval = getRefreshIntervalSeconds();
+        refreshTimer = setInterval(() => {
+          refresh().catch(() => {
+            /* handled */
+          });
+        }, newInterval * 1000);
       }
+
+      // A genuine connection change is the one allowed cooldown bypass: drop
+      // the cache for the old endpoint and fetch the new one promptly.
+      if (
+        e.affectsConfiguration('litellm.apiBase') ||
+        e.affectsConfiguration('litellm.apiKey')
+      ) {
+        controller?.clearCache();
+        controller?.resetCooldown();
+        refresh({ force: true }).catch(() => {
+          /* handled */
+        });
+        return;
+      }
+
+      // Other litellm settings (e.g. soft-budget thresholds): re-render from
+      // cache only — no API call.
+      renderStatusBar();
     })
   );
 
-  // Refresh usage when VS Code window regains focus.
-  context.subscriptions.push(
-    vscode.window.onDidChangeWindowState((state) => {
-      if (state.focused) {
-        updateStatusBar();
-      }
-    })
-  );
-
+  // NOTE: the v1.0.0 onDidChangeWindowState (refresh on window focus) handler
+  // was removed in v1.0.2. It was the largest call multiplier and is unnecessary
+  // now that the periodic timer + cooldown manage freshness.
 }
 
 export function deactivate(): void {
@@ -325,5 +472,7 @@ export function deactivate(): void {
     clearInterval(refreshTimer);
     refreshTimer = undefined;
   }
-  lastBudgetInfo = undefined;
+  controller = undefined;
+  lastError = undefined;
+  wasError = false;
 }
