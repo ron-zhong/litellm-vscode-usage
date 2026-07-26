@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
-## [Unreleased]
+## [0.2.0] — Fix package vulnerabilities
 
 ### Added
 - Unit tests using a real local HTTP mock server for `fetchUserInfo` and `fetchSpendLogs`.
@@ -33,5 +33,5 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
-[Unreleased]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.1.0
