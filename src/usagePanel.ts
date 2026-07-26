@@ -199,7 +199,7 @@ export class UsagePanel {
       .reverse()
       .map((d) => {
         const modelsStr = formatModelsForTable(d.models);
-        return `<tr><td>${escapeHtml(d.date)}</td><td>$${d.spend.toFixed(4)}</td><td>${escapeHtml(modelsStr)}</td></tr>`;
+        return `<tr><td>${escapeHtml(d.date)}</td><td>$${d.spend.toFixed(2)}</td><td>${escapeHtml(modelsStr)}</td></tr>`;
       })
       .join('');
 
