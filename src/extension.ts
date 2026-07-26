@@ -315,25 +315,39 @@ async function showSpendDetails(): Promise<void> {
     maxBudget && maxBudget > 0
       ? `${Math.min((spend / maxBudget) * 100, 100).toFixed(1)}% used`
       : null;
+  const spendSummary =
+    maxBudget && maxBudget > 0
+      ? `${formatSpend(spend)} / $${maxBudget.toFixed(2)} (${Math.min((spend / maxBudget) * 100, 100).toFixed(1)}%)`
+      : formatSpend(spend);
 
   const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(spend, maxBudget) : '';
 
-  const lines: string[] = [
-    `Current Spend    : ${formatSpend(spend)}`,
-    maxBudget ? `Budget Limit     : $${maxBudget.toFixed(2)}` : '',
-    pct ? `Budget Used      : ${pct}` : '',
-    budgetBar ? `Budget           : ${budgetBar}` : '',
-    resetAt ? `Resets At        : ${new Date(resetAt).toLocaleString()}` : '',
-    alias ? `User Alias       : ${alias}` : '',
-  ].filter(Boolean);
+  type SpendPickItem = vscode.QuickPickItem & {
+    action?: 'showUsage' | 'refresh' | 'openSettings';
+  };
 
-  const items: vscode.QuickPickItem[] = [
-    { label: '${productName}', kind: vscode.QuickPickItemKind.Separator },
-    ...lines.map((l) => ({ label: l })),
+  const detailItems: SpendPickItem[] = [
+    { label: 'Spend', description: spendSummary },
+    ...(budgetBar ? [{ label: 'Budget Bar', description: budgetBar }] : []),
+    ...(resetAt ? [{ label: 'Reset', description: new Date(resetAt).toLocaleString() }] : []),
+    ...(alias ? [{ label: 'Alias', description: alias }] : []),
+  ];
+
+  const items: SpendPickItem[] = [
+    { label: `${productName}`, kind: vscode.QuickPickItemKind.Separator },
+    ...detailItems,
     { label: '', kind: vscode.QuickPickItemKind.Separator },
-    { label: '$(graph) Open Usage Dashboard', description: 'View budget summary' },
-    { label: '$(refresh) Refresh', description: 'Refresh status bar now' },
-    { label: '$(settings-gear) Open Settings', description: 'Edit LiteLLM settings' },
+    {
+      label: '$(graph) Open Usage Dashboard',
+      description: 'View budget summary',
+      action: 'showUsage',
+    },
+    { label: '$(refresh) Refresh', description: 'Refresh status bar now', action: 'refresh' },
+    {
+      label: '$(settings-gear) Open Settings',
+      description: 'Edit LiteLLM settings',
+      action: 'openSettings',
+    },
   ];
 
   const selected = await vscode.window.showQuickPick(items, {
@@ -345,11 +359,11 @@ async function showSpendDetails(): Promise<void> {
     return;
   }
 
-  if (selected.label.includes('Open Usage Dashboard')) {
+  if (selected.action === 'showUsage') {
     vscode.commands.executeCommand('litellm.showUsage');
-  } else if (selected.label.includes('Refresh')) {
+  } else if (selected.action === 'refresh') {
     vscode.commands.executeCommand('litellm.refresh');
-  } else if (selected.label.includes('Open Settings')) {
+  } else if (selected.action === 'openSettings') {
     vscode.commands.executeCommand('workbench.action.openSettings', 'litellm');
   }
 }

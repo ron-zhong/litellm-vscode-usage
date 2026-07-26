@@ -35,7 +35,7 @@ export class UsagePanel {
 
     const panel = vscode.window.createWebviewPanel(
       UsagePanel.viewType,
-      `${productName} Usage Dashboard`,
+      `${productName} Dashboard`,
       column || vscode.ViewColumn.One,
       {
         enableScripts: false,
@@ -101,12 +101,12 @@ export class UsagePanel {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(this._productName)} Usage Dashboard</title>
+  <title>${escapeHtml(this._productName)} Dashboard</title>
   ${this._commonStyles()}
 </head>
 <body>
   <div class="container">
-    <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
+    <h1>${escapeHtml(this._productName)} Dashboard</h1>
 
     <div class="summary-cards">
       <div class="card">
