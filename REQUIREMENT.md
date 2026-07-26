@@ -1,6 +1,6 @@
 # Requirement — LiteLLM Usage VS Code Extension
 
-> A VS Code extension that monitors LiteLLM proxy spend in the status bar, generates AI-assisted commit messages, provides a usage dashboard, and one-click configures VS Code Chat / Claude Code to use a LiteLLM proxy as the model provider.
+> A VS Code extension that monitors LiteLLM proxy spend in the status bar and provides a usage dashboard.
 >
 > All LiteLLM API definitions referenced below are in `./litellm/openapi.json`.
 
