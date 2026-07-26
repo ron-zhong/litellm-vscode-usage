@@ -2,12 +2,6 @@
 
 Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly in VS Code and unlock AI-powered developer productivity features powered by your own LiteLLM endpoint.
 
-<img width="290" height="61" alt="image" src="https://github.com/user-attachments/assets/19e3e9fd-647f-4c6f-965e-92b660cebda9" />
-
-<img width="875" height="296" alt="image" src="https://github.com/user-attachments/assets/fc25c7e4-4259-4f1c-bc92-8835574762f5" />
-
-<img width="1460" height="1354" alt="image" src="https://github.com/user-attachments/assets/5052f918-32a5-4ebc-a0a0-a055dcafc0cc" />
-
 ---
 
 ## Features
@@ -17,6 +11,28 @@ Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly 
 | **Status-bar spend** | Live budget-window spend badge with soft/hard budget visual alerts, refreshed on a configurable interval. |
 | **Spend details** | Quick-pick popup with current budget spend, budget limit, budget %, reset date, and user alias. |
 | **Usage Dashboard** | Webview with a month-to-date spend bar chart (proper axes, per-day hover tooltips with model breakdown), a daily breakdown table (date, spend, models), and budget summary cards. |
+
+---
+
+## Screenshots
+
+### Status-bar spend badge
+
+The status bar shows your current budget-window spend at a glance, with color-coded alerts when soft or hard budget thresholds are exceeded.
+
+<img width="290" height="61" alt="LiteLLM spend badge in the VS Code status bar" src="https://github.com/user-attachments/assets/19e3e9fd-647f-4c6f-965e-92b660cebda9" />
+
+### Spend details popup
+
+Click the status bar item to open a quick-pick popup with the full budget summary — current spend, budget limit, budget used %, reset date, and user alias — plus quick actions to open the dashboard, refresh, or edit settings.
+
+<img width="875" height="296" alt="LiteLLM spend details quick-pick popup showing budget summary and action items" src="https://github.com/user-attachments/assets/fc25c7e4-4259-4f1c-bc92-8835574762f5" />
+
+### Usage Dashboard
+
+The full webview dashboard displays budget summary cards, a month-to-date vertical bar chart with y-axis spend ticks and x-axis day labels, per-bar hover tooltips showing the model-level breakdown, and a daily breakdown table sorted newest-first.
+
+<img width="1460" height="1354" alt="LiteLLM Usage Dashboard webview showing budget cards, month-to-date spend bar chart with axes, and daily breakdown table" src="https://github.com/user-attachments/assets/5052f918-32a5-4ebc-a0a0-a055dcafc0cc" />
 
 ---
 
