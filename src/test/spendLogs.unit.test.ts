@@ -1,5 +1,5 @@
 /**
- * Unit tests for the dashboard 30-day spend path:
+ * Unit tests for the dashboard month-to-date spend path:
  *   - buildDailySeries (pure, injectable today)
  *   - fetchSpendLogsSummarized (via a local mock server)
  */
@@ -13,6 +13,7 @@ import {
   addDayStr,
   daysAgoStr,
   todayUtcStr,
+  monthStartStr,
   LiteLLMHttpError,
 } from '../litellmClient';
 
@@ -53,53 +54,58 @@ function jsonResponse(res: http.ServerResponse, status: number, body: unknown): 
 
 describe('buildDailySeries', () => {
   const today = '2026-07-26';
+  const monthStart = '2026-07-01';
+  const windowDays = 26; // July 1 .. July 26
 
-  it('returns windowDays zeros when no data is provided', () => {
-    const series = buildDailySeries([], today, 30);
-    assert.strictEqual(series.length, 30);
+  it('returns one zero entry per day in the range when no data is provided', () => {
+    const series = buildDailySeries([], monthStart, today);
+    assert.strictEqual(series.length, windowDays);
     assert.ok(series.every((d) => d.spend === 0));
-    // oldest -> newest, ending on today
-    assert.strictEqual(series[0].date, addDayStr(today, -29));
-    assert.strictEqual(series[29].date, today);
+    // oldest -> newest, starting on monthStart, ending on today
+    assert.strictEqual(series[0].date, monthStart);
+    assert.strictEqual(series[windowDays - 1].date, today);
   });
 
   it('maps spend to the matching day and 0-fills the rest', () => {
     const days: SummarizedDay[] = [
-      { date: today, spend: 1.5 },
-      { date: addDayStr(today, -1), spend: 0.25 },
+      { date: today, spend: 1.5, models: {} },
+      { date: addDayStr(today, -1), spend: 0.25, models: {} },
     ];
-    const series = buildDailySeries(days, today, 30);
-    assert.strictEqual(series.length, 30);
-    assert.strictEqual(series[29].spend, 1.5);
-    assert.strictEqual(series[28].spend, 0.25);
+    const series = buildDailySeries(days, monthStart, today);
+    assert.strictEqual(series.length, windowDays);
+    assert.strictEqual(series[windowDays - 1].spend, 1.5);
+    assert.strictEqual(series[windowDays - 2].spend, 0.25);
     assert.strictEqual(series[0].spend, 0);
   });
 
-  it('sums multiple rows for the same date', () => {
+  it('sums multiple rows for the same date and merges models', () => {
     const days: SummarizedDay[] = [
-      { date: today, spend: 1 },
-      { date: today, spend: 2 },
+      { date: today, spend: 1, models: { 'gpt-4o': 0.6 } },
+      { date: today, spend: 2, models: { 'gpt-4o': 0.4, 'claude-3': 1.0 } },
     ];
-    const series = buildDailySeries(days, today, 30);
-    assert.strictEqual(series[29].spend, 3);
+    const series = buildDailySeries(days, monthStart, today);
+    assert.strictEqual(series[windowDays - 1].spend, 3);
+    assert.deepStrictEqual(series[windowDays - 1].models, { 'gpt-4o': 1.0, 'claude-3': 1.0 });
   });
 
-  it('ignores rows outside the window', () => {
+  it('ignores rows outside the range', () => {
     const days: SummarizedDay[] = [
-      { date: addDayStr(today, -30), spend: 99 }, // outside (window is -29..0)
-      { date: addDayStr(today, 1), spend: 99 }, // future, outside
-      { date: today, spend: 5 },
+      { date: '2026-06-30', spend: 99, models: {} }, // before monthStart
+      { date: addDayStr(today, 1), spend: 99, models: {} }, // after today
+      { date: today, spend: 5, models: {} },
     ];
-    const series = buildDailySeries(days, today, 30);
-    assert.strictEqual(series[29].spend, 5);
+    const series = buildDailySeries(days, monthStart, today);
+    assert.strictEqual(series[windowDays - 1].spend, 5);
     assert.ok(series.every((d) => d.spend !== 99));
   });
 
-  it('respects a custom window length', () => {
-    const series = buildDailySeries([], today, 7);
+  it('respects a custom range', () => {
+    const start = '2026-07-20';
+    const end = '2026-07-26';
+    const series = buildDailySeries([], start, end);
     assert.strictEqual(series.length, 7);
-    assert.strictEqual(series[0].date, addDayStr(today, -6));
-    assert.strictEqual(series[6].date, today);
+    assert.strictEqual(series[0].date, start);
+    assert.strictEqual(series[6].date, end);
   });
 });
 
@@ -117,12 +123,18 @@ describe('date helpers', () => {
     assert.match(daysAgoStr(0), /^\d{4}-\d{2}-\d{2}$/);
     assert.strictEqual(daysAgoStr(0), todayUtcStr());
   });
+
+  it('monthStartStr is the 1st of the current month', () => {
+    const ms = monthStartStr();
+    assert.match(ms, /^\d{4}-\d{2}-01$/);
+    assert.strictEqual(ms.slice(0, 7), todayUtcStr().slice(0, 7));
+  });
 });
 
 // ─── fetchSpendLogsSummarized ─────────────────────────────────────────────────
 
 describe('fetchSpendLogsSummarized', () => {
-  it('parses summarized rows, ignoring extra keys', async () => {
+  it('parses summarized rows, ignoring extra keys but keeping models', async () => {
     const mock = await startMockServer((_req, res) => {
       // Shape matches LiteLLM summarize=true: {startTime, spend, users, models}
       jsonResponse(res, 200, [
@@ -135,8 +147,10 @@ describe('fetchSpendLogsSummarized', () => {
       assert.strictEqual(days.length, 2);
       assert.strictEqual(days[0].date, '2026-07-26');
       assert.strictEqual(days[0].spend, 1.5);
+      assert.deepStrictEqual(days[0].models, { 'gpt-4o': 1.5 });
       assert.strictEqual(days[1].date, '2026-07-25');
       assert.strictEqual(days[1].spend, 0.25);
+      assert.deepStrictEqual(days[1].models, {});
     } finally {
       await mock.close();
     }

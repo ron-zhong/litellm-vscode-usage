@@ -4,7 +4,7 @@ import {
   fetchSpendLogsSummarized,
   buildDailySeries,
   todayUtcStr,
-  daysAgoStr,
+  monthStartStr,
   addDayStr,
   BudgetInfo,
   DailyPoint,
@@ -18,7 +18,6 @@ import {
 } from './config';
 import {
   ACTIVATION_JITTER_MS,
-  DASHBOARD_BREAKDOWN_DAYS,
   DASHBOARD_BREAKDOWN_ENABLED,
   STARTUP_NOTIFICATION_TEXT,
 } from './constants';
@@ -35,7 +34,7 @@ let lastError: unknown | undefined;
 /** Tracks success→error transitions so we don't toast the same failure repeatedly. */
 let wasError = false;
 
-// ─── Dashboard 30-day logs: daily cache + single-flight ────────────────────────
+// ─── Dashboard month-to-date logs: daily cache + single-flight ───────────────
 // Logs are fetched ONLY on dashboard open, at most once per calendar day per
 // user, and only when DASHBOARD_BREAKDOWN_ENABLED is true. They are never
 // touched by the periodic timer or the Refresh command (which refreshes the
@@ -213,11 +212,12 @@ function refresh(opts?: { force?: boolean }): Promise<BudgetInfo | undefined> {
 }
 
 /**
- * Ensure the dashboard's 30-day daily spend series is available, fetching it at
- * most ONCE per calendar day (success caches for the day; a failure does not
- * cache, so the next dashboard open can retry). Single-flight dedupes concurrent
- * opens. Returns undefined when the feature is disabled or the fetch fails —
- * callers render the budget summary and an "unavailable" note instead of blocking.
+ * Ensure the dashboard's month-to-date daily spend series is available, fetching
+ * it at most ONCE per calendar day (success caches for the day; a failure does
+ * not cache, so the next dashboard open can retry). Single-flight dedupes
+ * concurrent opens. Returns undefined when the feature is disabled or the fetch
+ * fails — callers render the budget summary and an "unavailable" note instead of
+ * blocking.
  *
  * This is NOT triggered by the periodic timer or the Refresh command.
  */
@@ -237,13 +237,13 @@ function ensureDailySpend(): Promise<DailyPoint[] | undefined> {
     return Promise.resolve(undefined);
   }
 
-  const start = daysAgoStr(DASHBOARD_BREAKDOWN_DAYS - 1); // today-29
+  const start = monthStartStr(); // 1st of current month
   const end = addDayStr(today, 1); // capture all of today (API end is <= midnight UTC)
 
   const p = (async (): Promise<DailyPoint[] | undefined> => {
     try {
       const days = await fetchSpendLogsSummarized(conn.apiBase, conn.apiKey, start, end);
-      const series = buildDailySeries(days, today, DASHBOARD_BREAKDOWN_DAYS);
+      const series = buildDailySeries(days, start, today);
       logsCache = series;
       logsFetchDate = today; // do not re-fetch until the next calendar day
       return series;
@@ -319,16 +319,16 @@ async function showSpendDetails(): Promise<void> {
   const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(spend, maxBudget) : '';
 
   const lines: string[] = [
-    `Current Spend : ${formatSpend(spend)}`,
-    maxBudget ? `Budget Limit        : $${maxBudget.toFixed(2)}` : '',
-    pct ? `Budget Used         : ${pct}` : '',
-    budgetBar ? `Budget              : ${budgetBar}` : '',
-    resetAt ? `Resets At           : ${new Date(resetAt).toLocaleString()}` : '',
-    alias ? `User Alias      : ${alias}` : '',
+    `Current Spend    : ${formatSpend(spend)}`,
+    maxBudget ? `Budget Limit     : $${maxBudget.toFixed(2)}` : '',
+    pct ? `Budget Used      : ${pct}` : '',
+    budgetBar ? `Budget           : ${budgetBar}` : '',
+    resetAt ? `Resets At        : ${new Date(resetAt).toLocaleString()}` : '',
+    alias ? `User Alias       : ${alias}` : '',
   ].filter(Boolean);
 
   const items: vscode.QuickPickItem[] = [
-    { label: `$(info) ${productName}`, kind: vscode.QuickPickItemKind.Separator },
+    { label: '${productName}', kind: vscode.QuickPickItemKind.Separator },
     ...lines.map((l) => ({ label: l })),
     { label: '', kind: vscode.QuickPickItemKind.Separator },
     { label: '$(graph) Open Usage Dashboard', description: 'View budget summary' },
@@ -398,7 +398,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       // Ensure the budget cache is populated (gated; no call when fresh), then
-      // ensure the 30-day daily series (at most once per calendar day). The panel
+      // ensure the month-to-date daily series (at most once per calendar day). The panel
       // itself issues no API calls; it only renders the snapshots.
       let info: BudgetInfo | undefined;
       try {
@@ -425,7 +425,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         return;
       }
-      // Fetch the 30-day series (daily-cached; no call if already loaded today
+      // Fetch the month-to-date series (daily-cached; no call if already loaded today
       // or if the breakdown is disabled). A logs failure does NOT block the
       // dashboard — the panel renders the budget summary either way.
       const dailySeries = await ensureDailySpend();
@@ -442,7 +442,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
 
     // Manual Refresh force-reloads the CURRENT SPEND only (GET /v2/user/info),
-    // bypassing the cooldown. It does NOT refresh the dashboard 30-day logs
+    // bypassing the cooldown. It does NOT refresh the dashboard month-to-date logs
     // (those refresh at most once per calendar day, on dashboard open). The
     // budget controller's single-flight still dedupes concurrent Refresh clicks.
     vscode.commands.registerCommand('litellm.refresh', async () => {

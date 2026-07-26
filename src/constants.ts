@@ -19,7 +19,7 @@ export const ACTIVATION_JITTER_MS = 10_000;
 
 /**
  * Build-time switch (set by the system admin before packaging the extension)
- * that enables the dashboard "Past 30 Days Spend" breakdown. When `false`, the
+ * that enables the dashboard "Month-to-Date Spend" breakdown. When `false`, the
  * dashboard shows the budget summary only and makes NO /spend/logs call — used
  * for performance-sensitive deployments. Default: on.
  *
@@ -27,6 +27,3 @@ export const ACTIVATION_JITTER_MS = 10_000;
  * `npm run package`.
  */
 export const DASHBOARD_BREAKDOWN_ENABLED = true;
-
-/** Number of days shown in the dashboard spend bar chart. */
-export const DASHBOARD_BREAKDOWN_DAYS = 30;

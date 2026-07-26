@@ -174,23 +174,37 @@ export async function fetchBudgetInfo(apiBase: string, apiKey: string): Promise<
   };
 }
 
-// ─── Dashboard 30-day spend (GET /spend/logs?summarize=true) ──────────────────
+// ─── Dashboard month-to-date spend (GET /spend/logs?summarize=true) ───────────
 
 /** One day's aggregated spend from the summarized /spend/logs response. */
 export interface SummarizedDay {
   date: string; // YYYY-MM-DD
   spend: number;
+  /** Per-model spend map, e.g. { "gpt-4o": 1.5, "claude-3": 0.3 }. */
+  models: Record<string, number>;
 }
 
-/** One bar in the 30-day dashboard chart. */
+/** One bar in the month-to-date dashboard chart. */
 export interface DailyPoint {
   date: string; // YYYY-MM-DD
   spend: number;
+  /** Per-model spend map, e.g. { "gpt-4o": 1.5, "claude-3": 0.3 }. */
+  models: Record<string, number>;
 }
 
 /** Today's date as YYYY-MM-DD (UTC, matching the API's UTC date handling). */
 export function todayUtcStr(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** First day of the current month as YYYY-MM-DD (UTC). */
+export function monthStartStr(): string {
+  return new Date().toISOString().slice(0, 8) + '01';
+}
+
+/** First day of the month containing `dateStr` as YYYY-MM-DD. */
+export function monthStartOfStr(dateStr: string): string {
+  return dateStr.slice(0, 8) + '01';
 }
 
 /** Date string (YYYY-MM-DD) for `n` days before today (UTC). */
@@ -232,29 +246,61 @@ export async function fetchSpendLogsSummarized(
   return raw.map((row: any) => ({
     date: String(row.startTime ?? row.date ?? row.day ?? '').slice(0, 10),
     spend: Number(row.spend ?? 0),
+    models: normalizeModels(row.models),
   }));
 }
 
+/** Coerce an unknown `models` field into Record<string, number>. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeModels(models: any): Record<string, number> {
+  if (!models || typeof models !== 'object') {
+    return {};
+  }
+  const result: Record<string, number> = {};
+  for (const [key, val] of Object.entries(models)) {
+    const n = Number(val);
+    if (!isNaN(n) && n !== 0) {
+      result[key] = n;
+    }
+  }
+  return result;
+}
+
 /**
- * Build a fixed-length daily series for the `windowDays` days ending on
- * `todayStr` (inclusive), 0-filling any day with no data. Result is ordered
+ * Build a fixed-length daily series for the inclusive range
+ * `startDate` .. `endDate`, 0-filling any day with no data. Result is ordered
  * oldest → newest (left → right on the chart). Pure / unit-testable.
+ *
+ * Days outside the range are ignored. Multiple rows for the same date have
+ * their spend summed and their per-model spends merged.
  */
 export function buildDailySeries(
   days: SummarizedDay[],
-  todayStr: string,
-  windowDays = 30
+  startDate: string,
+  endDate: string
 ): DailyPoint[] {
   const spendByDate = new Map<string, number>();
+  const modelsByDate = new Map<string, Record<string, number>>();
   for (const d of days) {
-    if (d.date) {
-      spendByDate.set(d.date, (spendByDate.get(d.date) ?? 0) + d.spend);
+    if (!d.date) {
+      continue;
     }
+    spendByDate.set(d.date, (spendByDate.get(d.date) ?? 0) + d.spend);
+    const existing = modelsByDate.get(d.date) ?? {};
+    for (const [model, amt] of Object.entries(d.models)) {
+      existing[model] = (existing[model] ?? 0) + amt;
+    }
+    modelsByDate.set(d.date, existing);
   }
   const series: DailyPoint[] = [];
-  for (let i = windowDays - 1; i >= 0; i -= 1) {
-    const date = addDayStr(todayStr, -i);
-    series.push({ date, spend: spendByDate.get(date) ?? 0 });
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    series.push({
+      date: cursor,
+      spend: spendByDate.get(cursor) ?? 0,
+      models: modelsByDate.get(cursor) ?? {},
+    });
+    cursor = addDayStr(cursor, 1);
   }
   return series;
 }
