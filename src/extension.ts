@@ -247,19 +247,19 @@ async function showSpendDetails(): Promise<void> {
   const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(spend, maxBudget) : '';
 
   const lines: string[] = [
-    `Current Budget Spend : ${formatSpend(spend)}`,
+    `Current Spend : ${formatSpend(spend)}`,
     maxBudget ? `Budget Limit        : $${maxBudget.toFixed(2)}` : '',
     pct ? `Budget Used         : ${pct}` : '',
     budgetBar ? `Budget              : ${budgetBar}` : '',
     window ? `Budget Window        : ${window}` : '',
     resetAt ? `Resets At           : ${new Date(resetAt).toLocaleString()}` : '',
-    alias ? `User/Key Alias      : ${alias}` : '',
+    alias ? `User Alias      : ${alias}` : '',
     `Data Source         : ${budgetInfo.source}`,
     `API Base            : ${conn.apiBase}`,
   ].filter(Boolean);
 
   const items: vscode.QuickPickItem[] = [
-    { label: `$(account) ${productName} Usage Summary`, kind: vscode.QuickPickItemKind.Separator },
+    { label: `$(info) ${productName}`, kind: vscode.QuickPickItemKind.Separator },
     ...lines.map((l) => ({ label: l })),
     { label: '', kind: vscode.QuickPickItemKind.Separator },
     { label: '$(graph) Open Usage Dashboard', description: 'View budget summary' },

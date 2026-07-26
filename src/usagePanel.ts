@@ -104,7 +104,7 @@ export class UsagePanel {
 
     <div class="summary-cards">
       <div class="card">
-        <div class="card-label">Current Budget Spend</div>
+        <div class="card-label">Current Spend</div>
         <div class="card-value">$${spend.toFixed(4)}</div>
       </div>
       <div class="card">
@@ -116,7 +116,7 @@ export class UsagePanel {
         <div class="card-value">${pct ? `${pct}%` : '—'}</div>
       </div>
       <div class="card">
-        <div class="card-label">Budget Window</div>
+        <div class="card-label">Budget Duration</div>
         <div class="card-value">${escapeHtml(windowLabel)}</div>
       </div>
       <div class="card">
@@ -135,12 +135,12 @@ export class UsagePanel {
     <h2>Details</h2>
     <table>
       <tbody>
-        <tr><th>Current Budget Spend</th><td>$${spend.toFixed(4)}</td></tr>
+        <tr><th>Current Spend</th><td>$${spend.toFixed(4)}</td></tr>
         <tr><th>Budget Limit</th><td>${maxBudget ? `$${maxBudget.toFixed(2)}` : '— (none configured)'}</td></tr>
         <tr><th>Budget Used</th><td>${pct ? `${pct}%` : '—'}</td></tr>
         <tr><th>Budget Duration</th><td>${escapeHtml(windowLabel)}</td></tr>
         <tr><th>Budget Resets At</th><td>${escapeHtml(resetLabel)}</td></tr>
-        <tr><th>User/Key Alias</th><td>${escapeHtml(aliasLabel)}</td></tr>
+        <tr><th>User Alias</th><td>${escapeHtml(aliasLabel)}</td></tr>
         <tr><th>API Base</th><td><code>${escapeHtml(this._apiBase)}</code></td></tr>
         <tr><th>Data Source</th><td><code>${escapeHtml(info.source)}</code></td></tr>
       </tbody>
