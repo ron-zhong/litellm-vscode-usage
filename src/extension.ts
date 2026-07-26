@@ -417,13 +417,16 @@ export function activate(context: vscode.ExtensionContext): void {
       // Ensure the budget cache is populated (gated; no call when fresh), then
       // ensure the month-to-date daily series (at most once per calendar day). The panel
       // itself issues no API calls; it only renders the snapshots.
+      const hadError = wasError;
       let info: BudgetInfo | undefined;
       try {
         info = await refresh();
       } catch (err) {
-        vscode.window.showErrorMessage(
-          `Failed to fetch ${productName} usage: ` + (err instanceof Error ? err.message : String(err))
-        );
+        if (hadError) {
+          vscode.window.showErrorMessage(
+            `Failed to fetch ${productName} usage: ` + (err instanceof Error ? err.message : String(err))
+          );
+        }
         return;
       }
       if (!info) {
