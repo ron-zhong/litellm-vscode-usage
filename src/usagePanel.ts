@@ -71,9 +71,7 @@ export class UsagePanel {
     if (dailySeries !== undefined) {
       this._dailySeries = dailySeries;
     }
-    if (this._panel.visible) {
-      this._panel.webview.html = this._getHtml(info, this._dailySeries);
-    }
+    this._panel.webview.html = this._getHtml(info, this._dailySeries);
   }
 
   public dispose(): void {
