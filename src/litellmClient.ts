@@ -129,19 +129,18 @@ async function requestJson<T>(options: RequestOptions): Promise<T> {
 
 /** Retry transient failures (5xx + timeout/network), max 2 retries with 1s/2s backoff. */
 async function requestJsonWithRetry<T>(options: RequestOptions): Promise<T> {
-  for (let attempt = 0; attempt <= RETRY_BACKOFF_MS.length; attempt += 1) {
+  for (let attempt = 0; attempt < RETRY_BACKOFF_MS.length; attempt += 1) {
     try {
       return await requestJson<T>(options);
     } catch (error) {
-      const canRetry = shouldRetry(error) && attempt < RETRY_BACKOFF_MS.length;
-      if (!canRetry) {
+      if (!shouldRetry(error)) {
         throw error;
       }
       await delay(RETRY_BACKOFF_MS[attempt]);
     }
   }
 
-  throw new LiteLLMHttpError('Unexpected retry state');
+  return requestJson<T>(options);
 }
 
 /** Perform an authenticated HTTP/HTTPS GET request and return parsed JSON body. */
