@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.0.0] — Phase 1 milestone release
+
+### Added
+- Startup activation notification: "LiteLLM spend monitor is running."
+- Soft budget settings with defaults exposed in extension configuration:
+	- `litellm.softBudgetStandardUsd` (200)
+	- `litellm.softBudgetProUsd` (500)
+	- `litellm.softBudgetMaxUsd` (1000)
+- `litellm.defaultModel` setting added for upcoming commit-message workflow.
+- Focus-regain refresh behavior for status bar updates when the VS Code window becomes active.
+- Product name templating in Phase 1 UI by reading extension `displayName`.
+
+### Changed
+- Extension version updated from 0.2.0 to 1.0.0.
+- Status bar spend formatting now consistently uses 2 decimal places.
+- Status bar visual state logic now supports both soft-budget and hard-budget thresholds with hard-budget precedence.
+- Hard-budget source changed to use `/v2/user/info` first, with `/key/info` fallback for compatibility.
+- Spend details popup now computes:
+	- today's spend from today's `/spend/logs` range,
+	- monthly spend from start-of-month through today,
+	- budget usage row only when `max_budget` is configured.
+- Refresh interval minimum raised from 30 seconds to 60 seconds and enforced both in settings schema and runtime clamp logic.
+
+### Fixed
+- Offline/connection failure status handling now shows `$(cloud-offline)` with clearer tooltip diagnostics.
+- HTTP client reliability improved with transient retry policy:
+	- retries on 5xx, timeout, and network errors,
+	- no retries on 4xx,
+	- exponential backoff at 1s then 2s.
+- Updated unit-test timeout to account for retry backoff behavior in transient error scenarios.
+
+### Security
+- `litellm.apiKey` configuration scope set to `machine` to reduce secret-sync risk in Settings Sync.
+
+---
+
 ## [0.2.0] — Fix package vulnerabilities
 
 ### Added
@@ -33,5 +69,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
+[1.0.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.1.0
