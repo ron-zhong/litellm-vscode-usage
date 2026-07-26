@@ -198,7 +198,7 @@ function buildBudgetBar(spend: number, maxBudget: number | null): string {
 
 export function activate(context: vscode.ExtensionContext): void {
   // Create status bar item (priority 100 = fairly prominent)
-  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = 'litellm.showSpendDetails';
   context.subscriptions.push(statusBarItem);
 
