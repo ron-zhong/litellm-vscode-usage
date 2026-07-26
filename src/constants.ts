@@ -16,3 +16,17 @@ export const STARTUP_NOTIFICATION_TEXT = 'LiteLLM spend monitor is running.';
  * promptly (within ~ACTIVATION_JITTER_MS).
  */
 export const ACTIVATION_JITTER_MS = 10_000;
+
+/**
+ * Build-time switch (set by the system admin before packaging the extension)
+ * that enables the dashboard "Past 30 Days Spend" breakdown. When `false`, the
+ * dashboard shows the budget summary only and makes NO /spend/logs call — used
+ * for performance-sensitive deployments. Default: on.
+ *
+ * To ship a no-breakdown build, set this to `false` in this file, then
+ * `npm run package`.
+ */
+export const DASHBOARD_BREAKDOWN_ENABLED = true;
+
+/** Number of days shown in the dashboard spend bar chart. */
+export const DASHBOARD_BREAKDOWN_DAYS = 30;

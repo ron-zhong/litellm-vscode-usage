@@ -2,7 +2,7 @@
   "name": "litellm-usage",
   "displayName": "LiteLLM Usage",
   "description": "Display your current LiteLLM budget spend and usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "litellm",
   "repository": {
     "type": "git",

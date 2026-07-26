@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.0.3] — UI polish, force-refresh, and 30-day dashboard bar chart
+
+### Changed
+- **Status-bar icon reverted** to `$(graph)` (the v0.1.0/v0.2.0 icon), replacing the `$(radio-tower)` introduced in v1.0.0.
+- **Manual `Refresh` now force-reloads** the current spend (`GET /v2/user/info`), bypassing the cooldown. It refreshes the **budget only** — it does not refresh the dashboard 30-day chart. Single-flight still dedupes concurrent clicks.
+- **Pop-up trimmed:** removed Budget Window, API Base, and Data Source rows.
+- **Dashboard trimmed:** removed Budget Duration, API Base, and Data Source; Budget Limit and Budget Used are now hidden entirely (not shown as "—") when no budget is set.
+- **Dashboard "Past 30 Days Spend"** vertical bar chart added, built from a single `GET /spend/logs?summarize=true` call (one row per day), rendered as a CSS bar chart (no scripts). Oldest → newest (left → right), latest day on the right.
+
+### Added
+- **Build-time admin switch** `DASHBOARD_BREAKDOWN_ENABLED` (in `src/constants.ts`, default `true`): lets the system admin disable the 30-day breakdown (and its `/spend/logs` call) when packaging the extension for performance-sensitive deployments.
+- **Daily cache for dashboard logs:** the 30-day series is fetched at most **once per calendar day per user** (on dashboard open). Once loaded, it is not re-fetched until the next day. Failures are not cached, so the next open can retry. It is never triggered by the periodic timer or the Refresh command.
+- `fetchSpendLogsSummarized`, `buildDailySeries`, and date helpers in `litellmClient.ts`; unit tests for the 30-day series and the summarized-log parser.
+
+### Fixed
+- Steady-state proxy load unchanged from v1.0.2 for the budget path; the logs path adds at most one small call per user per day (and is disable-able via the admin switch).
+
+### Security
+- `npm audit` reports 0 vulnerabilities.
+
+---
+
 ## [1.0.2] — Single-endpoint, throttle-protected spend monitor
 
 ### Changed
@@ -91,6 +113,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
+[1.0.3]: https://github.com/ron-zhong/litellm-vsix/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/ron-zhong/litellm-vsix/compare/v1.0.0...v1.0.2
 [1.0.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0

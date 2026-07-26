@@ -1,12 +1,27 @@
 import * as vscode from 'vscode';
-import { fetchBudgetInfo, BudgetInfo, LiteLLMHttpError } from './litellmClient';
+import {
+  fetchBudgetInfo,
+  fetchSpendLogsSummarized,
+  buildDailySeries,
+  todayUtcStr,
+  daysAgoStr,
+  addDayStr,
+  BudgetInfo,
+  DailyPoint,
+  LiteLLMHttpError,
+} from './litellmClient';
 import { makeRefreshController, RefreshController } from './refreshController';
 import {
   getConnectionConfig,
   getRefreshIntervalSeconds,
   getSoftBudgetThresholds,
 } from './config';
-import { ACTIVATION_JITTER_MS, STARTUP_NOTIFICATION_TEXT } from './constants';
+import {
+  ACTIVATION_JITTER_MS,
+  DASHBOARD_BREAKDOWN_DAYS,
+  DASHBOARD_BREAKDOWN_ENABLED,
+  STARTUP_NOTIFICATION_TEXT,
+} from './constants';
 import { UsagePanel } from './usagePanel';
 
 // ─── Module state ─────────────────────────────────────────────────────────────
@@ -19,6 +34,16 @@ let controller: RefreshController | undefined;
 let lastError: unknown | undefined;
 /** Tracks success→error transitions so we don't toast the same failure repeatedly. */
 let wasError = false;
+
+// ─── Dashboard 30-day logs: daily cache + single-flight ────────────────────────
+// Logs are fetched ONLY on dashboard open, at most once per calendar day per
+// user, and only when DASHBOARD_BREAKDOWN_ENABLED is true. They are never
+// touched by the periodic timer or the Refresh command (which refreshes the
+// budget /v2/user/info only).
+let logsCache: DailyPoint[] | undefined;
+/** YYYY-MM-DD of the last successful logs fetch; reused for the rest of that day. */
+let logsFetchDate: string | undefined;
+let logsInFlight: Promise<DailyPoint[] | undefined> | undefined;
 
 function formatSpend(amount: number): string {
   return `$${amount.toFixed(2)}`;
@@ -43,7 +68,7 @@ function resolveSoftBudgetStyle(spend: number): StatusStyle {
       backgroundColor: new vscode.ThemeColor('statusBarItem.warningBackground'),
     };
   }
-  return { icon: '$(radio-tower)' };
+  return { icon: '$(graph)' };
 }
 
 function resolveHardBudgetStyle(spend: number, maxBudget: number | null): StatusStyle | null {
@@ -187,6 +212,54 @@ function refresh(opts?: { force?: boolean }): Promise<BudgetInfo | undefined> {
   });
 }
 
+/**
+ * Ensure the dashboard's 30-day daily spend series is available, fetching it at
+ * most ONCE per calendar day (success caches for the day; a failure does not
+ * cache, so the next dashboard open can retry). Single-flight dedupes concurrent
+ * opens. Returns undefined when the feature is disabled or the fetch fails —
+ * callers render the budget summary and an "unavailable" note instead of blocking.
+ *
+ * This is NOT triggered by the periodic timer or the Refresh command.
+ */
+function ensureDailySpend(): Promise<DailyPoint[] | undefined> {
+  if (!DASHBOARD_BREAKDOWN_ENABLED) {
+    return Promise.resolve(undefined);
+  }
+  const today = todayUtcStr();
+  if (logsCache && logsFetchDate === today) {
+    return Promise.resolve(logsCache);
+  }
+  if (logsInFlight) {
+    return logsInFlight;
+  }
+  const conn = getConnectionConfig();
+  if (!conn) {
+    return Promise.resolve(undefined);
+  }
+
+  const start = daysAgoStr(DASHBOARD_BREAKDOWN_DAYS - 1); // today-29
+  const end = addDayStr(today, 1); // capture all of today (API end is <= midnight UTC)
+
+  const p = (async (): Promise<DailyPoint[] | undefined> => {
+    try {
+      const days = await fetchSpendLogsSummarized(conn.apiBase, conn.apiKey, start, end);
+      const series = buildDailySeries(days, today, DASHBOARD_BREAKDOWN_DAYS);
+      logsCache = series;
+      logsFetchDate = today; // do not re-fetch until the next calendar day
+      return series;
+    } catch (err) {
+      // Don't cache / don't set logsFetchDate → next dashboard open may retry.
+      console.error('LiteLLM dashboard logs fetch failed:', err);
+      return undefined;
+    } finally {
+      logsInFlight = undefined;
+    }
+  })();
+
+  logsInFlight = p;
+  return p;
+}
+
 /** Show a quick-pick detail popup for the current budget spend. */
 async function showSpendDetails(): Promise<void> {
   const conn = getConnectionConfig();
@@ -236,7 +309,6 @@ async function showSpendDetails(): Promise<void> {
   const spend = budgetInfo.spend;
   const maxBudget = budgetInfo.maxBudget;
   const resetAt = budgetInfo.budgetResetAt;
-  const window = budgetInfo.budgetDuration;
   const alias = budgetInfo.userAlias;
 
   const pct =
@@ -251,11 +323,8 @@ async function showSpendDetails(): Promise<void> {
     maxBudget ? `Budget Limit        : $${maxBudget.toFixed(2)}` : '',
     pct ? `Budget Used         : ${pct}` : '',
     budgetBar ? `Budget              : ${budgetBar}` : '',
-    window ? `Budget Window        : ${window}` : '',
     resetAt ? `Resets At           : ${new Date(resetAt).toLocaleString()}` : '',
     alias ? `User Alias      : ${alias}` : '',
-    `Data Source         : ${budgetInfo.source}`,
-    `API Base            : ${conn.apiBase}`,
   ].filter(Boolean);
 
   const items: vscode.QuickPickItem[] = [
@@ -328,8 +397,9 @@ export function activate(context: vscode.ExtensionContext): void {
         );
         return;
       }
-      // Ensure cache is populated (gated; no call when fresh). Open the panel
-      // with the snapshot — the panel itself issues no API calls.
+      // Ensure the budget cache is populated (gated; no call when fresh), then
+      // ensure the 30-day daily series (at most once per calendar day). The panel
+      // itself issues no API calls; it only renders the snapshots.
       let info: BudgetInfo | undefined;
       try {
         info = await refresh();
@@ -355,7 +425,11 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         return;
       }
-      UsagePanel.createOrShow(info, conn.apiBase, productName);
+      // Fetch the 30-day series (daily-cached; no call if already loaded today
+      // or if the breakdown is disabled). A logs failure does NOT block the
+      // dashboard — the panel renders the budget summary either way.
+      const dailySeries = await ensureDailySpend();
+      UsagePanel.createOrShow(info, dailySeries, conn.apiBase, productName);
     }),
 
     vscode.commands.registerCommand('litellm.showSpendDetails', () => {
@@ -367,10 +441,10 @@ export function activate(context: vscode.ExtensionContext): void {
       });
     }),
 
-    // Manual refresh is also cooldown-gated per the v1.0.2 requirement. If a
-    // fetch has settled recently and we already have data, we do NOT fire and
-    // instead tell the user when the next refresh is allowed. When there is no
-    // data yet (first use) the controller always fires regardless of cooldown.
+    // Manual Refresh force-reloads the CURRENT SPEND only (GET /v2/user/info),
+    // bypassing the cooldown. It does NOT refresh the dashboard 30-day logs
+    // (those refresh at most once per calendar day, on dashboard open). The
+    // budget controller's single-flight still dedupes concurrent Refresh clicks.
     vscode.commands.registerCommand('litellm.refresh', async () => {
       const conn = getConnectionConfig();
       if (!conn) {
@@ -382,21 +456,11 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!controller) {
         return;
       }
-      const waitMs = controller.msUntilNextRefresh();
-      if (waitMs > 0 && controller.getCache() !== undefined) {
-        vscode.window.showInformationMessage(
-          `${productName}: Refreshed recently. Next refresh available in ~${Math.max(
-            1,
-            Math.round(waitMs / 1000)
-          )}s.`
-        );
-        return;
-      }
       try {
-        await controller.refresh();
+        await controller.refresh({ force: true });
         vscode.window.showInformationMessage(`${productName} usage refreshed.`);
       } catch (err) {
-        // Error already rendered/toasted via onError; no extra toast here.
+        // Error already rendered/toasted via onError; this is a light confirmation.
         vscode.window.showInformationMessage(
           `${productName}: refresh failed — ` + (err instanceof Error ? err.message : String(err))
         );
@@ -475,4 +539,7 @@ export function deactivate(): void {
   controller = undefined;
   lastError = undefined;
   wasError = false;
+  logsCache = undefined;
+  logsFetchDate = undefined;
+  logsInFlight = undefined;
 }

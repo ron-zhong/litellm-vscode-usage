@@ -173,3 +173,88 @@ export async function fetchBudgetInfo(apiBase: string, apiKey: string): Promise<
     source: '/v2/user/info',
   };
 }
+
+// ─── Dashboard 30-day spend (GET /spend/logs?summarize=true) ──────────────────
+
+/** One day's aggregated spend from the summarized /spend/logs response. */
+export interface SummarizedDay {
+  date: string; // YYYY-MM-DD
+  spend: number;
+}
+
+/** One bar in the 30-day dashboard chart. */
+export interface DailyPoint {
+  date: string; // YYYY-MM-DD
+  spend: number;
+}
+
+/** Today's date as YYYY-MM-DD (UTC, matching the API's UTC date handling). */
+export function todayUtcStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Date string (YYYY-MM-DD) for `n` days before today (UTC). */
+export function daysAgoStr(n: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Add `n` days to a YYYY-MM-DD date string (UTC), returning YYYY-MM-DD. */
+export function addDayStr(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Fetch daily aggregated spend for a date range via
+ * `GET /spend/logs?start_date=…&end_date=…&summarize=true`.
+ *
+ * The summarized response is one object per day: `{"startTime":"YYYY-MM-DD",
+ * "spend":<num>, "users":{...}, "models":{...}}`, zero-padded for missing days.
+ * We only keep `date` (normalized from `startTime`) and `spend`; extra keys are
+ * ignored. Used at most once per user per calendar day (see extension.ts cache).
+ */
+export async function fetchSpendLogsSummarized(
+  apiBase: string,
+  apiKey: string,
+  startDate: string,
+  endDate: string
+): Promise<SummarizedDay[]> {
+  const path = `/spend/logs?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&summarize=true`;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = await httpGet<any[]>(apiBase, apiKey, path);
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return raw.map((row: any) => ({
+    date: String(row.startTime ?? row.date ?? row.day ?? '').slice(0, 10),
+    spend: Number(row.spend ?? 0),
+  }));
+}
+
+/**
+ * Build a fixed-length daily series for the `windowDays` days ending on
+ * `todayStr` (inclusive), 0-filling any day with no data. Result is ordered
+ * oldest → newest (left → right on the chart). Pure / unit-testable.
+ */
+export function buildDailySeries(
+  days: SummarizedDay[],
+  todayStr: string,
+  windowDays = 30
+): DailyPoint[] {
+  const spendByDate = new Map<string, number>();
+  for (const d of days) {
+    if (d.date) {
+      spendByDate.set(d.date, (spendByDate.get(d.date) ?? 0) + d.spend);
+    }
+  }
+  const series: DailyPoint[] = [];
+  for (let i = windowDays - 1; i >= 0; i -= 1) {
+    const date = addDayStr(todayStr, -i);
+    series.push({ date, spend: spendByDate.get(date) ?? 0 });
+  }
+  return series;
+}
