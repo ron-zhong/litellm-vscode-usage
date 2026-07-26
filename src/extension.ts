@@ -90,24 +90,32 @@ async function updateStatusBar(): Promise<void> {
   statusBarItem.show();
 
   try {
-    const budgetInfo = await fetchBudgetInfo(conn.apiBase, conn.apiKey);
+    // Fetch the budget envelope (max_budget / budget_reset_at) from /v2/user/info,
+    // and the actual calendar-month spend from /spend/logs. The /v2/user/info
+    // `spend` field is cumulative (reset only by the server's budget_duration
+    // cycle, not the calendar month), so the badge displays the month spend
+    // summed from logs for consistency with the dashboard.
+    const [budgetInfo, monthLogs] = await Promise.all([
+      fetchBudgetInfo(conn.apiBase, conn.apiKey),
+      fetchSpendLogs(conn.apiBase, conn.apiKey, startOfMonth(), today()),
+    ]);
     lastBudgetInfo = budgetInfo;
 
-    const spend = budgetInfo.spend;
+    const monthSpend = aggregateUsage(monthLogs).totalMonthlySpend;
     const maxBudget = budgetInfo.maxBudget;
 
-    const spendLabel = formatSpend(spend);
-    const hardStyle = resolveHardBudgetStyle(spend, maxBudget);
-    const softStyle = resolveSoftBudgetStyle(spend);
+    const spendLabel = formatSpend(monthSpend);
+    const hardStyle = resolveHardBudgetStyle(monthSpend, maxBudget);
+    const softStyle = resolveSoftBudgetStyle(monthSpend);
     const finalStyle = hardStyle ?? softStyle;
 
     if (maxBudget !== null && maxBudget > 0) {
-      const pct = Math.min((spend / maxBudget) * 100, 100).toFixed(1);
+      const pct = Math.min((monthSpend / maxBudget) * 100, 100).toFixed(1);
       statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel} (${pct}%)`;
-      statusBarItem.tooltip = `${productName} spend: ${spendLabel} / $${maxBudget.toFixed(2)} (${pct}% used). Click for details.`;
+      statusBarItem.tooltip = `${productName} monthly spend: ${spendLabel} / $${maxBudget.toFixed(2)} (${pct}% used this month). Click for details.`;
     } else {
       statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel}`;
-      statusBarItem.tooltip = `${productName} spend: ${spendLabel}. Click for details.`;
+      statusBarItem.tooltip = `${productName} monthly spend: ${spendLabel}. Click for details.`;
     }
 
     statusBarItem.command = 'litellm.showSpendDetails';
@@ -177,13 +185,12 @@ async function showSpendDetails(): Promise<void> {
     );
   }
 
-  const spend = budgetInfo.spend;
   const maxBudget = budgetInfo.maxBudget;
   const resetAt = budgetInfo.budgetResetAt;
 
   const pct =
     maxBudget && maxBudget > 0
-      ? `${Math.min((monthSpend / maxBudget) * 100, 100).toFixed(1)}% used`
+      ? `${Math.min((monthSpend / maxBudget) * 100, 100).toFixed(1)}% used this month`
       : null;
 
   const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(monthSpend, maxBudget) : '';
@@ -194,7 +201,6 @@ async function showSpendDetails(): Promise<void> {
     pct ? `Budget Usage  : ${pct}` : '',
     budgetBar ? `Budget        : ${budgetBar}` : '',
     resetAt ? `Resets At     : ${new Date(resetAt).toLocaleString()}` : '',
-    `Current Spend : ${formatSpend(spend)} (${budgetInfo.source})`,
     `API Base      : ${conn.apiBase}`,
   ].filter(Boolean);
 

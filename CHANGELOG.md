@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ---
 
+## [1.0.1] — Status bar shows current calendar-month spend
+
+### Changed
+- Status bar spend badge now displays the **current calendar-month spend**, computed by summing `/spend/logs` entries from the first of the month through today, instead of the cumulative `spend` field from `/v2/user/info`. This makes the badge consistent with the Usage Dashboard and the spend-details "Monthly Spend" row.
+- `updateStatusBar()` now issues two parallel requests per refresh: `fetchBudgetInfo` (for `max_budget` / `budget_reset_at`) and `fetchSpendLogs(startOfMonth(), today())` (for the displayed month spend). Both run via `Promise.all`, so refresh latency is unchanged.
+- Budget percentage, hard-budget thresholds (yellow ≥80% / red ≥100%), and soft-budget thresholds now key off the calendar-month spend for internal consistency with the displayed number.
+- Status bar tooltip now reads "monthly spend … (% used this month)" to make the spend window explicit.
+
+### Fixed
+- Resolved the spend discrepancy where the status bar and the spend-details "Current Spend" row showed the cumulative `/v2/user/info` `spend` (e.g. $0.30) while the dashboard showed the calendar-month spend (e.g. $0.20). The `/v2/user/info` `spend` is cumulative and is only reset by the server's `budget_duration` cycle, not at the calendar-month boundary, so it does not represent the current month.
+- Removed the redundant "Current Spend" row (cumulative `/v2/user/info` spend) from the spend-details quick-pick popup, which previously sat beside the "Monthly Spend" row and caused confusion.
+
+---
+
 ## [1.0.0] — Phase 1 milestone release
 
 ### Added
@@ -69,6 +83,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Fallback to `LITELLM_API_BASE` / `LITELLM_API_KEY` environment variables.
 - Unit tests for `aggregateUsage`, `today`, and `startOfMonth`.
 
+[1.0.1]: https://github.com/ron-zhong/litellm-vsix/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.2.0...v1.0.0
 [0.2.0]: https://github.com/ron-zhong/litellm-vsix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ron-zhong/litellm-vsix/releases/tag/v0.1.0

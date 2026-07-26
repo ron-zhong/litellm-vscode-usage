@@ -2,12 +2,13 @@
 
 ## Scope Completed
 
-Completed scope: Phase 1 through Milestone A and Milestone B only.
+Completed scope: Phase 1 through Milestone A and Milestone B only, plus the 1.0.1 status-bar monthly-spend correction.
 
 User-approved implementation decisions applied:
 
 1. Refresh floor is hardcoded to 60 seconds.
 2. Hard-budget source uses /v2/user/info first, then falls back to /key/info for compatibility.
+3. Status bar and spend-details popup display the current **calendar-month** spend (summed from `/spend/logs`), not the cumulative `/v2/user/info` `spend`, which is only reset by the server's `budget_duration` cycle.
 
 ---
 
@@ -121,6 +122,44 @@ Implemented in src/extension.ts:
 Implemented in src/extension.ts and src/usagePanel.ts:
 
 - Uses extension displayName from package metadata for user-visible labels and titles.
+
+---
+
+## 1.0.1 — Status bar shows current calendar-month spend
+
+### Background
+
+The status bar badge and the spend-details "Current Spend" row previously displayed the `spend` field from `/v2/user/info` (or the `/key/info` fallback). Per the LiteLLM docs, that field is cumulative and is only reset by the server's `budget_duration` cycle (e.g. `30d`, `7d`, `1d`) — it is **not** reset at the calendar-month boundary, and when no `budget_duration` is configured it is a lifetime total. This caused a visible discrepancy: the badge showed the cumulative figure (e.g. $0.30) while the Usage Dashboard and the "Monthly Spend" row showed the calendar-month figure summed from `/spend/logs` (e.g. $0.20).
+
+### Decision (user-approved)
+
+Focus on the current calendar-month spend in the status bar and spend-details popup, rather than the cumulative spend. The budget-cycle reset behavior of `/v2/user/info` `spend` is being validated separately by the user (a 1-hour `budget_duration` test was configured); if the cycle-vs-month divergence later proves material for the hard-budget warning colors, the threshold logic can be revisited.
+
+### Implemented in src/extension.ts
+
+1. `updateStatusBar()` — monthly spend in the badge
+	- Now fetches `fetchBudgetInfo` (for `max_budget` / `budget_reset_at`) and `fetchSpendLogs(startOfMonth(), today())` in parallel via `Promise.all`.
+	- Displays `aggregateUsage(monthLogs).totalMonthlySpend` (calendar-month spend) in the badge instead of `budgetInfo.spend`.
+	- Budget percentage, `resolveHardBudgetStyle`, and `resolveSoftBudgetStyle` now receive the calendar-month spend so the displayed number, percentage, and warning/error colors are internally consistent.
+	- Tooltip updated to "monthly spend … (% used this month)".
+	- Added an inline comment documenting why `/v2/user/info` `spend` is not used for display (cumulative; reset only by the server's `budget_duration` cycle).
+
+2. `showSpendDetails()` — removed the cumulative-spend row
+	- Removed the `Current Spend : $… (/v2/user/info)` line that showed cumulative spend, which sat beside "Monthly Spend" and caused confusion.
+	- Removed the now-unused `spend` local variable.
+	- Relabeled the budget-usage line to "…% used this month".
+	- Kept the `Resets At` row (sourced from `budgetInfo.budgetResetAt`) since the budget-cycle reset timestamp remains useful.
+
+### Tradeoffs
+
+- One additional API call per status-bar refresh (`/spend/logs` for the month range alongside `/v2/user/info`). Both calls run in parallel, so refresh latency is unaffected.
+- Hard-budget warning semantics: the server enforces `max_budget` against the cycle spend (`/v2/user/info`), not the calendar month. The badge now thresholds against monthly spend, so when `budget_duration` does not align with the calendar month the warning colors may not exactly track server-side enforcement. This is accepted pending the user's budget-cycle testing.
+
+### Validation
+
+1. TypeScript compile (`npm run compile`): PASS.
+2. Unit tests (`out/test/litellmClient.test.js`, `out/test/httpClient.unit.test.js`): 19 passing.
+3. No existing tests asserted on the cumulative-spend display behavior, so nothing regressed.
 
 ---
 
@@ -266,6 +305,8 @@ Status legend:
 - Status: Pass
 - Evidence:
 	- Normalized budget fields: [src/litellmClient.ts](src/litellmClient.ts#L277)
+- Notes:
+	- As of 1.0.1, `spend` from the budget endpoint is fetched but no longer displayed in the badge or popup; the displayed spend is the calendar-month total summed from `/spend/logs`. `max_budget` and `budget_reset_at` are still used for the budget percentage and reset-date rows.
 
 ### Phase 1.2 Spend Details Pop-up
 
@@ -280,6 +321,8 @@ Status legend:
 - Evidence:
 	- Today and monthly computation from logs: [src/extension.ts](src/extension.ts#L167)
 	- Reset date row: [src/extension.ts](src/extension.ts#L196)
+- Notes:
+	- As of 1.0.1, the separate "Current Spend" row (cumulative `/v2/user/info` spend) was removed; the popup now shows only the calendar-month "Monthly Spend" row plus reset date, to avoid the cumulative-vs-month discrepancy.
 
 3. Budget % shown only when hard budget exists
 - Status: Pass

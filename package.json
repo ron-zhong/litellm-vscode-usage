@@ -2,7 +2,7 @@
   "name": "litellm-usage",
   "displayName": "LiteLLM Usage",
   "description": "Display your LiteLLM daily and monthly LLM usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "litellm",
   "repository": {
     "type": "git",
