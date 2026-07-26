@@ -21,7 +21,7 @@ Thank you for your interest in contributing! This guide covers how to set up the
 
 | Tool | Minimum version |
 |---|---|
-| Node.js | 18 |
+| Node.js | 20.19 |
 | npm | 9 |
 | VS Code | 1.85.0 |
 
@@ -32,8 +32,14 @@ Thank you for your interest in contributing! This guide covers how to set up the
 ```bash
 git clone https://github.com/ron-zhong/litellm-vsix.git
 cd litellm-vsix
-npm install
+npm ci
 ```
+
+`npm ci` installs exactly what `package-lock.json` pins — the same clean, reproducible install CI performs. Use it for a fresh checkout or whenever you want your dependency tree to match CI.
+
+Use `npm install` instead only when you intend to update the lockfile (e.g. after changing `package.json` dependencies). It may resolve newer versions and rewrite `package-lock.json`.
+
+> ℹ️ ESLint v10 requires Node.js >= 20.19.0. If lint/install fails on an older runtime, upgrade Node first.
 
 ---
 
@@ -44,9 +50,6 @@ src/
   extension.ts        # Entry point — activation, command registration
   config.ts           # Reads litellm.* settings + env-var fallbacks
   litellmClient.ts    # HTTP client + data aggregation functions
-  chatConfig.ts       # VS Code Chat BYOK configuration
-  commitMessage.ts    # Generate Commit Message command
-  modelConfig.ts      # Configure AI Models wizard
   usagePanel.ts       # Usage Dashboard webview
 
   test/
@@ -86,6 +89,16 @@ npm run lint
 ```
 
 Lint runs automatically in CI and must pass before a PR can be merged.
+
+### Security audit
+
+After linting, verify the dependency tree is free of known vulnerabilities (requires Node >= 20.19; CI uses Node 24):
+
+    npm install 2>&1 | tail -15 && echo "=== AUDIT ===" && npm audit 2>&1 | tail -25
+
+This installs dependencies (surfacing any deprecation/install warnings) and then runs `npm audit` to print the vulnerability summary. Audit also runs automatically in CI.
+
+> ⚠️ A pull request can only be merged when `npm audit` reports **no CRITICAL or HIGH severity vulnerabilities**. If `npm audit` flags any, resolve them before requesting review — prefer adding an npm `overrides` block in `package.json` over running `npm audit fix --force`, which may apply breaking major downgrades.
 
 ### Run the extension locally
 

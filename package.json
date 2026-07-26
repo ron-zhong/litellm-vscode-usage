@@ -9,7 +9,8 @@
     "url": "https://github.com/ron-zhong/litellm-vsix.git"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.85.0",
+    "node": ">=20.19.0"
   },
   "categories": [
     "Other"
@@ -44,11 +45,6 @@
           "default": 300,
           "minimum": 30,
           "description": "How often (in seconds) to refresh the spend displayed in the status bar."
-        },
-        "litellm.defaultModel": {
-          "type": "string",
-          "default": "gpt-4o",
-          "description": "Default model name to use when configuring VS Code Chat BYOK (e.g. gpt-4o, claude-3-5-sonnet). Must match a model available on your LiteLLM proxy."
         }
       }
     },
@@ -62,22 +58,8 @@
         "title": "LiteLLM: Show Current Spend Details"
       },
       {
-        "command": "litellm.configureChatByok",
-        "title": "LiteLLM: Configure VS Code Chat (BYOK)"
-      },
-      {
         "command": "litellm.refresh",
         "title": "LiteLLM: Refresh Status Bar"
-      },
-      {
-        "command": "litellm.generateCommitMessage",
-        "title": "LiteLLM: Generate Commit Message",
-        "icon": "$(sparkle)"
-      },
-      {
-        "command": "litellm.configureModels",
-        "title": "LiteLLM: Configure AI Models",
-        "icon": "$(settings-gear)"
       }
     ],
     "menus": {
@@ -89,22 +71,7 @@
           "command": "litellm.showSpendDetails"
         },
         {
-          "command": "litellm.configureChatByok"
-        },
-        {
           "command": "litellm.refresh"
-        },
-        {
-          "command": "litellm.generateCommitMessage"
-        },
-        {
-          "command": "litellm.configureModels"
-        }
-      ],
-      "scm/inputBox": [
-        {
-          "command": "litellm.generateCommitMessage",
-          "when": "scmProvider == git"
         }
       ]
     }
@@ -113,22 +80,29 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
     "test": "npm run compile && mocha \"out/test/*.test.js\" \"out/test/integration/**/*.test.js\"",
     "test:unit": "npm run compile && mocha \"out/test/*.test.js\"",
     "test:integration": "npm run compile && mocha \"out/test/integration/**/*.test.js\"",
     "test:e2e": "npm run compile && node out/test/e2e/runTests.js",
     "package": "vsce package"
   },
+  "overrides": {
+    "brace-expansion": "^5.0.8",
+    "glob": "^13.0.6",
+    "serialize-javascript": "^7.0.5"
+  },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.11.0",
+    "@types/node": "^24.13.3",
     "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
     "@vscode/test-electron": "^2.4.0",
-    "eslint": "^8.56.0",
-    "mocha": "^11.7.6",
-    "typescript": "^5.3.3"
+    "eslint": "^10.8.0",
+    "mocha": "^11.3.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.65.0"
   }
 }
