@@ -93,7 +93,10 @@ The dashboard's month-to-date spend chart issues a single `GET /spend/logs?summa
 
 ```bash
 # Ship a no-breakdown build (no chart, no /spend/logs call)
+# macOS (BSD sed):
 sed -i '' 's/DASHBOARD_BREAKDOWN_ENABLED = true/DASHBOARD_BREAKDOWN_ENABLED = false/' src/constants.ts
+# Linux (GNU sed):
+sed -i 's/DASHBOARD_BREAKDOWN_ENABLED = true/DASHBOARD_BREAKDOWN_ENABLED = false/' src/constants.ts
 npm run package
 ```
 
