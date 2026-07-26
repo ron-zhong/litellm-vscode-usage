@@ -66,10 +66,13 @@ export class UsagePanel {
    * Re-render the panel with an updated BudgetInfo snapshot, keeping the
    * existing month-to-date series (Refresh updates the budget only, not the chart).
    * If a fresh daily series is supplied (dashboard re-open), it replaces it.
+   * Pass `null` to explicitly clear the stored series (e.g. when breakdown is
+   * disabled or the logs fetch failed); omit the argument to keep the existing one.
    */
-  public update(info: BudgetInfo, dailySeries?: DailyPoint[] | undefined): void {
+  public update(info: BudgetInfo, dailySeries?: DailyPoint[] | null): void {
     if (dailySeries !== undefined) {
-      this._dailySeries = dailySeries;
+      // null signals "clear"; an array replaces the stored series; omitting keeps it
+      this._dailySeries = dailySeries ?? undefined;
     }
     this._panel.webview.html = this._getHtml(info, this._dailySeries);
   }
@@ -264,10 +267,11 @@ export class UsagePanel {
   .bar-label { font-size: 0.6em; color: var(--vscode-descriptionForeground, #888); margin-top: 4px; height: 1em; }
   .x-axis-label { text-align: center; font-size: 0.7em; color: var(--vscode-descriptionForeground, #888); margin-top: 4px; }
 
+  .breakdown-table { table-layout: fixed; }
   .breakdown-table th.col-date { width: 120px; }
   .breakdown-table th.col-spend { width: 100px; }
   .breakdown-table th.col-models { width: auto; }
-  .breakdown-table td { font-size: 0.85em; word-break: break-all; }
+  .breakdown-table td { font-size: 0.85em; word-break: break-word; overflow-wrap: break-word; }
   h3 { font-size: 1.05em; margin-top: 24px; margin-bottom: 8px; color: var(--vscode-foreground); }
 </style>`;
   }
