@@ -1,6 +1,9 @@
 import * as https from 'https';
 import * as http from 'http';
 
+const DEFAULT_TIMEOUT_MS = 15000;
+const RETRY_BACKOFF_MS = [1000, 2000];
+
 export interface UserBudgetInfo {
   userId: string;
   maxBudget: number | null;
@@ -60,8 +63,55 @@ export interface UsageSummary {
   totalDailySpend: number;
 }
 
-/** Perform an authenticated HTTP/HTTPS GET request and return the parsed JSON body. */
-async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promise<T> {
+export interface BudgetInfo {
+  spend: number;
+  maxBudget: number | null;
+  budgetResetAt: string | null;
+  keyAlias: string | null;
+  source: '/v2/user/info' | '/key/info';
+}
+
+export class LiteLLMHttpError extends Error {
+  public readonly statusCode: number | null;
+  public readonly isTimeout: boolean;
+  public readonly isNetworkError: boolean;
+
+  constructor(message: string, options?: { statusCode?: number | null; isTimeout?: boolean; isNetworkError?: boolean }) {
+    super(message);
+    this.name = 'LiteLLMHttpError';
+    this.statusCode = options?.statusCode ?? null;
+    this.isTimeout = options?.isTimeout ?? false;
+    this.isNetworkError = options?.isNetworkError ?? false;
+  }
+}
+
+interface RequestOptions {
+  method: 'GET' | 'POST';
+  apiBase: string;
+  apiKey: string;
+  path: string;
+  body?: unknown;
+}
+
+/** Small helper for exponential retry backoff. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Returns true only for transient failures covered by requirement retry policy. */
+function shouldRetry(error: unknown): boolean {
+  if (!(error instanceof LiteLLMHttpError)) {
+    return false;
+  }
+  if (error.isTimeout || error.isNetworkError) {
+    return true;
+  }
+  return error.statusCode !== null && error.statusCode >= 500;
+}
+
+/** Perform an authenticated HTTP/HTTPS request and return parsed JSON body. */
+async function requestJson<T>(options: RequestOptions): Promise<T> {
+  const { method, apiBase, apiKey, path, body } = options;
   const url = new URL(path.replace(/^\/+/, ''), apiBase.endsWith('/') ? apiBase : apiBase + '/');
   const lib = url.protocol === 'https:' ? https : http;
 
@@ -72,9 +122,12 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
     headers['Authorization'] = 'Bearer ' + apiKey;
   }
 
+  const payload = body !== undefined ? JSON.stringify(body) : undefined;
+
   return new Promise<T>((resolve, reject) => {
-    const req = lib.get(
+    const req = lib.request(
       {
+        method,
         hostname: url.hostname,
         port: url.port || (url.protocol === 'https:' ? 443 : 80),
         path: url.pathname + (url.search || ''),
@@ -86,23 +139,68 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
           data += chunk.toString();
         });
         res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          const status = res.statusCode ?? null;
+          if (status !== null && status >= 400) {
+            reject(new LiteLLMHttpError(`HTTP ${status}: ${data}`, { statusCode: status }));
+            return;
+          }
+          if (!data) {
+            resolve({} as T);
             return;
           }
           try {
             resolve(JSON.parse(data) as T);
           } catch {
-            reject(new Error(`Failed to parse JSON response: ${data}`));
+            reject(new LiteLLMHttpError(`Failed to parse JSON response: ${data}`));
           }
         });
       }
     );
-    req.on('error', reject);
-    req.setTimeout(15000, () => {
-      req.destroy();
-      reject(new Error('Request timed out'));
+
+    req.on('error', (err: NodeJS.ErrnoException) => {
+      reject(
+        new LiteLLMHttpError(err.message, {
+          isNetworkError: true,
+        })
+      );
     });
+
+    req.setTimeout(DEFAULT_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new LiteLLMHttpError('Request timed out', { isTimeout: true }));
+    });
+
+    if (payload) {
+      req.write(payload);
+    }
+    req.end();
+  });
+}
+
+/** Retry transient failures (5xx + timeout/network), max 2 retries with 1s/2s backoff. */
+async function requestJsonWithRetry<T>(options: RequestOptions): Promise<T> {
+  for (let attempt = 0; attempt <= RETRY_BACKOFF_MS.length; attempt += 1) {
+    try {
+      return await requestJson<T>(options);
+    } catch (error) {
+      const canRetry = shouldRetry(error) && attempt < RETRY_BACKOFF_MS.length;
+      if (!canRetry) {
+        throw error;
+      }
+      await delay(RETRY_BACKOFF_MS[attempt]);
+    }
+  }
+
+  throw new LiteLLMHttpError('Unexpected retry state');
+}
+
+/** Perform an authenticated HTTP/HTTPS GET request and return parsed JSON body. */
+async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promise<T> {
+  return requestJsonWithRetry<T>({
+    method: 'GET',
+    apiBase,
+    apiKey,
+    path,
   });
 }
 
@@ -124,10 +222,13 @@ export async function fetchUserInfo(apiBase: string, apiKey: string): Promise<Us
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const keys: KeyInfo[] = (raw.keys ?? []).map((k: any) => ({
     key: k.token ?? k.key ?? '',
+    tpm_limit: k.tpm_limit ?? 0,
+    rpm_limit: k.rpm_limit ?? 0,
     maxBudget: k.max_budget ?? null,
     spend: k.spend ?? 0,
     budgetDuration: k.budget_duration ?? null,
     budgetResetAt: k.budget_reset_at ?? null,
+    key_alias: k.key_alias ?? null,
     models: k.models ?? [],
   }));
 
@@ -145,7 +246,7 @@ export async function fetchSpendLogs(
   startDate: string,
   endDate: string
 ): Promise<SpendLogEntry[]> {
-  const path = `/spend/logs?start_date=${startDate}&end_date=${endDate}`;
+  const path = `/spend/logs?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&summarize=false`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = await httpGet<any[]>(apiBase, apiKey, path);
 
@@ -166,6 +267,32 @@ export async function fetchSpendLogs(
     endTime: entry.endTime ?? entry.end_time ?? '',
     userId: entry.user ?? null,
   }));
+}
+
+/** Fetch user budget from /v2/user/info first, fallback to /key/info for compatibility. */
+export async function fetchBudgetInfo(apiBase: string, apiKey: string): Promise<BudgetInfo> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await httpGet<any>(apiBase, apiKey, '/v2/user/info');
+    return {
+      spend: raw.spend ?? 0,
+      maxBudget: raw.max_budget ?? null,
+      budgetResetAt: raw.budget_reset_at ?? null,
+      keyAlias: null,
+      source: '/v2/user/info',
+    };
+  } catch {
+    // Fallback for deployments where v2 endpoint is unavailable/disabled.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = await httpGet<any>(apiBase, apiKey, '/key/info');
+    return {
+      spend: raw.spend ?? 0,
+      maxBudget: raw.max_budget ?? null,
+      budgetResetAt: raw.budget_reset_at ?? null,
+      keyAlias: raw.key_alias ?? null,
+      source: '/key/info',
+    };
+  }
 }
 
 /** Aggregate spend logs into daily and model-level summaries. */

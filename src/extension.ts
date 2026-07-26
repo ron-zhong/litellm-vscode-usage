@@ -1,25 +1,74 @@
 import * as vscode from 'vscode';
 import {
-  fetchUserInfo,
+  fetchBudgetInfo,
   fetchSpendLogs,
   aggregateUsage,
   today,
-  UserInfo,
+  startOfMonth,
+  BudgetInfo,
+  LiteLLMHttpError,
 } from './litellmClient';
-import { getConnectionConfig } from './config';
+import {
+  getConnectionConfig,
+  getRefreshIntervalSeconds,
+  getSoftBudgetThresholds,
+} from './config';
+import {
+  STARTUP_NOTIFICATION_TEXT,
+} from './constants';
 import { UsagePanel } from './usagePanel';
 
 // ─── Status bar item ──────────────────────────────────────────────────────────
 
 let statusBarItem: vscode.StatusBarItem | undefined;
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
-let lastUserInfo: UserInfo | undefined;
+let lastBudgetInfo: BudgetInfo | undefined;
+let productName = 'LiteLLM';
 
 function formatSpend(amount: number): string {
-  if (amount >= 1) {
-    return `$${amount.toFixed(2)}`;
+  return `$${amount.toFixed(2)}`;
+}
+
+interface StatusStyle {
+  icon: string;
+  backgroundColor?: vscode.ThemeColor;
+}
+
+function resolveSoftBudgetStyle(spend: number): StatusStyle {
+  const thresholds = getSoftBudgetThresholds();
+  if (spend > thresholds.pro) {
+    return {
+      icon: '$(error)',
+      backgroundColor: new vscode.ThemeColor('statusBarItem.errorBackground'),
+    };
   }
-  return `$${amount.toFixed(4)}`;
+  if (spend > thresholds.standard) {
+    return {
+      icon: '$(warning)',
+      backgroundColor: new vscode.ThemeColor('statusBarItem.warningBackground'),
+    };
+  }
+  return { icon: '$(radio-tower)' };
+}
+
+function resolveHardBudgetStyle(spend: number, maxBudget: number | null): StatusStyle | null {
+  if (!maxBudget || maxBudget <= 0) {
+    return null;
+  }
+  const ratio = spend / maxBudget;
+  if (ratio >= 1) {
+    return {
+      icon: '$(circle-slash)',
+      backgroundColor: new vscode.ThemeColor('statusBarItem.errorBackground'),
+    };
+  }
+  if (ratio >= 0.8) {
+    return {
+      icon: '$(warning)',
+      backgroundColor: new vscode.ThemeColor('statusBarItem.warningBackground'),
+    };
+  }
+  return null;
 }
 
 /** Update the status bar with the current monthly spend. */
@@ -30,56 +79,54 @@ async function updateStatusBar(): Promise<void> {
 
   const conn = getConnectionConfig();
   if (!conn) {
-    statusBarItem.text = '$(cloud-offline) LiteLLM';
-    statusBarItem.tooltip = 'LiteLLM: API not configured. Click to set up.';
+    statusBarItem.text = `$(cloud-offline) ${productName}`;
+    statusBarItem.tooltip = `${productName}: API not configured. Click to set up.`;
     statusBarItem.command = 'litellm.showSpendDetails';
     statusBarItem.show();
     return;
   }
 
-  statusBarItem.text = '$(sync~spin) LiteLLM';
+  statusBarItem.text = `$(sync~spin) ${productName}`;
   statusBarItem.show();
 
   try {
-    const userInfo = await fetchUserInfo(conn.apiBase, conn.apiKey);
-    lastUserInfo = userInfo;
+    const budgetInfo = await fetchBudgetInfo(conn.apiBase, conn.apiKey);
+    lastBudgetInfo = budgetInfo;
 
-    const spend =
-      userInfo.userInfo?.spend ??
-      userInfo.keys.reduce((s, k) => s + k.spend, 0);
-
-    const maxBudget =
-      userInfo.userInfo?.maxBudget ??
-      (userInfo.keys.length > 0
-        ? userInfo.keys.reduce((s, k) => s + (k.maxBudget ?? 0), 0)
-        : null);
+    const spend = budgetInfo.spend;
+    const maxBudget = budgetInfo.maxBudget;
 
     const spendLabel = formatSpend(spend);
+    const hardStyle = resolveHardBudgetStyle(spend, maxBudget);
+    const softStyle = resolveSoftBudgetStyle(spend);
+    const finalStyle = hardStyle ?? softStyle;
 
     if (maxBudget !== null && maxBudget > 0) {
       const pct = Math.min((spend / maxBudget) * 100, 100).toFixed(1);
-      statusBarItem.text = `$(graph) LiteLLM ${spendLabel} (${pct}%)`;
-      statusBarItem.tooltip = `LiteLLM monthly spend: ${spendLabel} / $${maxBudget.toFixed(2)} (${pct}% used). Click for details.`;
+      statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel} (${pct}%)`;
+      statusBarItem.tooltip = `${productName} spend: ${spendLabel} / $${maxBudget.toFixed(2)} (${pct}% used). Click for details.`;
     } else {
-      statusBarItem.text = `$(graph) LiteLLM ${spendLabel}`;
-      statusBarItem.tooltip = `LiteLLM monthly spend: ${spendLabel}. Click for details.`;
+      statusBarItem.text = `${finalStyle.icon} ${productName} ${spendLabel}`;
+      statusBarItem.tooltip = `${productName} spend: ${spendLabel}. Click for details.`;
+    }
+
+    statusBarItem.command = 'litellm.showSpendDetails';
+    statusBarItem.backgroundColor = finalStyle.backgroundColor;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+
+    if (err instanceof LiteLLMHttpError && (err.isNetworkError || err.isTimeout)) {
+      statusBarItem.text = `$(cloud-offline) ${productName}`;
+      statusBarItem.tooltip = `${productName}: Connection failed. ${message}`;
+    } else {
+      statusBarItem.text = `$(warning) ${productName}`;
+      statusBarItem.tooltip = `${productName}: Failed to fetch usage data. ${message}`;
     }
 
     statusBarItem.command = 'litellm.showSpendDetails';
     statusBarItem.backgroundColor = undefined;
 
-    // Warn visually when spend exceeds 90% of budget
-    if (maxBudget !== null && maxBudget > 0 && spend / maxBudget >= 0.9) {
-      statusBarItem.backgroundColor = new vscode.ThemeColor(
-        'statusBarItem.warningBackground'
-      );
-    }
-  } catch (err) {
-    statusBarItem.text = '$(warning) LiteLLM';
-    statusBarItem.tooltip =
-      'LiteLLM: Failed to fetch usage data. Click for details. Error: ' +
-      (err instanceof Error ? err.message : String(err));
-    statusBarItem.command = 'litellm.showSpendDetails';
+    vscode.window.showErrorMessage(`${productName}: ${message}`);
   }
 }
 
@@ -88,7 +135,7 @@ async function showSpendDetails(): Promise<void> {
   const conn = getConnectionConfig();
   if (!conn) {
     const choice = await vscode.window.showWarningMessage(
-      'LiteLLM is not configured. Set litellm.apiBase (or LITELLM_API_BASE env var) to get started.',
+      `${productName} is not configured. Set litellm.apiBase (or LITELLM_API_BASE env var) to get started.`,
       'Open Settings'
     );
     if (choice === 'Open Settings') {
@@ -97,66 +144,62 @@ async function showSpendDetails(): Promise<void> {
     return;
   }
 
-  // Fetch fresh user info if we don't have it yet
-  let userInfo = lastUserInfo;
-  if (!userInfo) {
+  // Fetch fresh budget info if we don't have it yet
+  let budgetInfo = lastBudgetInfo;
+  if (!budgetInfo) {
     try {
-      userInfo = await fetchUserInfo(conn.apiBase, conn.apiKey);
-      lastUserInfo = userInfo;
+      budgetInfo = await fetchBudgetInfo(conn.apiBase, conn.apiKey);
+      lastBudgetInfo = budgetInfo;
     } catch (err) {
       await vscode.window.showErrorMessage(
-        'Failed to fetch LiteLLM usage: ' +
+        `Failed to fetch ${productName} usage: ` +
           (err instanceof Error ? err.message : String(err))
       );
       return;
     }
   }
 
-  // Also fetch today's spend from logs for a more complete picture
   let todaySpend = 0;
+  let monthSpend = 0;
   try {
     const t = today();
-    const logs = await fetchSpendLogs(conn.apiBase, conn.apiKey, t, t);
-    const summary = aggregateUsage(logs);
-    todaySpend = summary.totalDailySpend;
-  } catch {
-    // Non-fatal; daily spend is optional
+    const monthStart = startOfMonth();
+    const [dayLogs, monthLogs] = await Promise.all([
+      fetchSpendLogs(conn.apiBase, conn.apiKey, t, t),
+      fetchSpendLogs(conn.apiBase, conn.apiKey, monthStart, t),
+    ]);
+    todaySpend = aggregateUsage(dayLogs).totalDailySpend;
+    monthSpend = aggregateUsage(monthLogs).totalMonthlySpend;
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `Failed to fetch ${productName} spend logs: ` +
+        (err instanceof Error ? err.message : String(err))
+    );
   }
 
-  const spend =
-    userInfo.userInfo?.spend ??
-    userInfo.keys.reduce((s, k) => s + k.spend, 0);
-
-  const maxBudget =
-    userInfo.userInfo?.maxBudget ??
-    (userInfo.keys.length > 0
-      ? userInfo.keys.reduce((s, k) => s + (k.maxBudget ?? 0), 0)
-      : null);
-
-  const resetAt = userInfo.userInfo?.budgetResetAt ?? userInfo.keys[0]?.budgetResetAt ?? null;
-  const budgetDuration =
-    userInfo.userInfo?.budgetDuration ?? userInfo.keys[0]?.budgetDuration ?? null;
+  const spend = budgetInfo.spend;
+  const maxBudget = budgetInfo.maxBudget;
+  const resetAt = budgetInfo.budgetResetAt;
 
   const pct =
     maxBudget && maxBudget > 0
-      ? `${Math.min((spend / maxBudget) * 100, 100).toFixed(1)}% used`
-      : 'No budget limit set';
+      ? `${Math.min((monthSpend / maxBudget) * 100, 100).toFixed(1)}% used`
+      : null;
 
-  const budgetBar = buildBudgetBar(spend, maxBudget);
+  const budgetBar = maxBudget && maxBudget > 0 ? buildBudgetBar(monthSpend, maxBudget) : '';
 
   const lines: string[] = [
-    `Monthly Spend : ${formatSpend(spend)}${maxBudget ? ` / $${maxBudget.toFixed(2)}` : ''}`,
-    `Usage         : ${pct}`,
-    budgetBar ? `Budget        : ${budgetBar}` : '',
     `Today's Spend : ${formatSpend(todaySpend)}`,
-    budgetDuration ? `Period        : ${budgetDuration}` : '',
+    `Monthly Spend : ${formatSpend(monthSpend)}${maxBudget ? ` / $${maxBudget.toFixed(2)}` : ''}`,
+    pct ? `Budget Usage  : ${pct}` : '',
+    budgetBar ? `Budget        : ${budgetBar}` : '',
     resetAt ? `Resets At     : ${new Date(resetAt).toLocaleString()}` : '',
-    `User ID       : ${userInfo.userId || '(unknown)'}`,
+    `Current Spend : ${formatSpend(spend)} (${budgetInfo.source})`,
     `API Base      : ${conn.apiBase}`,
   ].filter(Boolean);
 
   const items: vscode.QuickPickItem[] = [
-    { label: '$(account) LiteLLM Usage Summary', kind: vscode.QuickPickItemKind.Separator },
+    { label: `$(account) ${productName} Usage Summary`, kind: vscode.QuickPickItemKind.Separator },
     ...lines.map((l) => ({ label: l })),
     { label: '', kind: vscode.QuickPickItemKind.Separator },
     { label: '$(graph) Open Usage Dashboard', description: 'View daily and monthly charts' },
@@ -165,7 +208,7 @@ async function showSpendDetails(): Promise<void> {
   ];
 
   const selected = await vscode.window.showQuickPick(items, {
-    title: 'LiteLLM Spend Details',
+    title: `${productName} Spend Details`,
     placeHolder: 'Select an action',
   });
 
@@ -197,10 +240,14 @@ function buildBudgetBar(spend: number, maxBudget: number | null): string {
 // ─── Extension activation / deactivation ─────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext): void {
+  productName = String(context.extension.packageJSON.displayName || productName);
+
   // Create status bar item (priority 100 = fairly prominent)
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = 'litellm.showSpendDetails';
   context.subscriptions.push(statusBarItem);
+
+  vscode.window.showInformationMessage(STARTUP_NOTIFICATION_TEXT);
 
   // Register commands
   context.subscriptions.push(
@@ -208,26 +255,26 @@ export function activate(context: vscode.ExtensionContext): void {
       const conn = getConnectionConfig();
       if (!conn) {
         vscode.window.showWarningMessage(
-          'LiteLLM is not configured. Please set litellm.apiBase first.'
+          `${productName} is not configured. Please set litellm.apiBase first.`
         );
         return;
       }
-      UsagePanel.createOrShow(conn.apiBase, conn.apiKey);
+      UsagePanel.createOrShow(conn.apiBase, conn.apiKey, productName);
     }),
 
     vscode.commands.registerCommand('litellm.showSpendDetails', () => {
       showSpendDetails().catch((err: unknown) => {
         console.error('LiteLLM showSpendDetails error:', err);
         vscode.window.showErrorMessage(
-          'LiteLLM: Unexpected error: ' + (err instanceof Error ? err.message : String(err))
+          `${productName}: Unexpected error: ` + (err instanceof Error ? err.message : String(err))
         );
       });
     }),
 
     vscode.commands.registerCommand('litellm.refresh', async () => {
-      lastUserInfo = undefined;
+      lastBudgetInfo = undefined;
       await updateStatusBar();
-      vscode.window.showInformationMessage('LiteLLM usage refreshed.');
+      vscode.window.showInformationMessage(`${productName} usage refreshed.`);
     })
   );
 
@@ -235,8 +282,7 @@ export function activate(context: vscode.ExtensionContext): void {
   updateStatusBar();
 
   // Periodic refresh
-  const config = vscode.workspace.getConfiguration('litellm');
-  const intervalSeconds = Math.max(30, config.get<number>('refreshIntervalSeconds') ?? 300);
+  const intervalSeconds = getRefreshIntervalSeconds();
   refreshTimer = setInterval(() => {
     updateStatusBar();
   }, intervalSeconds * 1000);
@@ -245,18 +291,14 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('litellm')) {
-        lastUserInfo = undefined;
+        lastBudgetInfo = undefined;
 
         // Reset the timer with new interval if it changed
         if (e.affectsConfiguration('litellm.refreshIntervalSeconds')) {
           if (refreshTimer !== undefined) {
             clearInterval(refreshTimer);
           }
-          const newConfig = vscode.workspace.getConfiguration('litellm');
-          const newInterval = Math.max(
-            30,
-            newConfig.get<number>('refreshIntervalSeconds') ?? 300
-          );
+          const newInterval = getRefreshIntervalSeconds();
           refreshTimer = setInterval(() => {
             updateStatusBar();
           }, newInterval * 1000);
@@ -266,6 +308,16 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     })
   );
+
+  // Refresh usage when VS Code window regains focus.
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused) {
+        updateStatusBar();
+      }
+    })
+  );
+
 }
 
 export function deactivate(): void {
@@ -273,5 +325,5 @@ export function deactivate(): void {
     clearInterval(refreshTimer);
     refreshTimer = undefined;
   }
-  lastUserInfo = undefined;
+  lastBudgetInfo = undefined;
 }

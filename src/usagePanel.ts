@@ -12,9 +12,10 @@ export class UsagePanel {
   private static readonly viewType = 'litellmUsage';
 
   private readonly _panel: vscode.WebviewPanel;
+  private readonly _productName: string;
   private _disposables: vscode.Disposable[] = [];
 
-  public static createOrShow(apiBase: string, apiKey: string): void {
+  public static createOrShow(apiBase: string, apiKey: string, productName: string): void {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -27,7 +28,7 @@ export class UsagePanel {
 
     const panel = vscode.window.createWebviewPanel(
       UsagePanel.viewType,
-      'LiteLLM Usage Dashboard',
+      `${productName} Usage Dashboard`,
       column || vscode.ViewColumn.One,
       {
         enableScripts: false,
@@ -35,11 +36,12 @@ export class UsagePanel {
       }
     );
 
-    UsagePanel.currentPanel = new UsagePanel(panel, apiBase, apiKey);
+    UsagePanel.currentPanel = new UsagePanel(panel, apiBase, apiKey, productName);
   }
 
-  private constructor(panel: vscode.WebviewPanel, apiBase: string, apiKey: string) {
+  private constructor(panel: vscode.WebviewPanel, apiBase: string, apiKey: string, productName: string) {
     this._panel = panel;
+    this._productName = productName;
 
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     this.refresh(apiBase, apiKey);
@@ -83,10 +85,10 @@ export class UsagePanel {
   private _getLoadingHtml(): string {
     return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>LiteLLM Usage</title>${this._commonStyles()}</head>
+<head><meta charset="UTF-8"><title>${escapeHtml(this._productName)} Usage</title>${this._commonStyles()}</head>
 <body>
   <div class="container">
-    <h1>LiteLLM Usage Dashboard</h1>
+    <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
     <p class="loading">Loading usage data…</p>
   </div>
 </body>
@@ -96,10 +98,10 @@ export class UsagePanel {
   private _getErrorHtml(message: string): string {
     return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><title>LiteLLM Usage</title>${this._commonStyles()}</head>
+<head><meta charset="UTF-8"><title>${escapeHtml(this._productName)} Usage</title>${this._commonStyles()}</head>
 <body>
   <div class="container">
-    <h1>LiteLLM Usage Dashboard</h1>
+    <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
     <div class="error">
       <strong>Error loading usage data</strong><br>
       ${escapeHtml(message)}<br><br>
@@ -143,12 +145,12 @@ export class UsagePanel {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LiteLLM Usage Dashboard</title>
+  <title>${escapeHtml(this._productName)} Usage Dashboard</title>
   ${this._commonStyles()}
 </head>
 <body>
   <div class="container">
-    <h1>LiteLLM Usage Dashboard</h1>
+    <h1>${escapeHtml(this._productName)} Usage Dashboard</h1>
 
     <div class="summary-cards">
       <div class="card">

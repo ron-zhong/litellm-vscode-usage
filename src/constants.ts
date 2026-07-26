@@ -1,0 +1,8 @@
+export const DEFAULT_REFRESH_INTERVAL_SECONDS = 300;
+export const REFRESH_INTERVAL_FLOOR_SECONDS = 60;
+
+export const SOFT_BUDGET_DEFAULT_STANDARD = 200;
+export const SOFT_BUDGET_DEFAULT_PRO = 500;
+export const SOFT_BUDGET_DEFAULT_MAX = 1000;
+
+export const STARTUP_NOTIFICATION_TEXT = 'LiteLLM spend monitor is running.';

@@ -127,7 +127,11 @@ describe('fetchUserInfo', () => {
 
 // ─── fetchSpendLogs ───────────────────────────────────────────────────────────
 
-describe('fetchSpendLogs', () => {
+describe('fetchSpendLogs', function () {
+  // fetchSpendLogs now retries transient failures with 1s + 2s backoff.
+  // Increase timeout so the 5xx retry test can complete reliably.
+  this.timeout(8000);
+
   it('maps snake_case API fields to camelCase correctly', async () => {
     const mock = await startMockServer((_req, res) => {
       jsonResponse(res, 200, [
