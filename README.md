@@ -8,9 +8,9 @@ Monitor your [LiteLLM](https://github.com/BerriAI/litellm) proxy spend directly 
 
 | Feature | Description |
 |---|---|
-| **Status-bar spend** | Live monthly spend badge, refreshed on a configurable interval. |
-| **Spend details** | Quick-pick popup with today's spend, monthly spend, budget %, and reset date. |
-| **Usage Dashboard** | Webview with daily & model-level spend tables. |
+| **Status-bar spend** | Live budget-window spend badge with soft/hard budget visual alerts, refreshed on a configurable interval. |
+| **Spend details** | Quick-pick popup with current budget spend, budget limit, budget %, reset date, and user alias. |
+| **Usage Dashboard** | Webview with a month-to-date spend bar chart (proper axes, per-day hover tooltips with model breakdown), a daily breakdown table (date, spend, models), and budget summary cards. |
 
 ---
 
@@ -52,12 +52,28 @@ Open **Settings → Extensions → LiteLLM Usage** or add the following to your 
   // Falls back to the LITELLM_API_KEY environment variable.
   "litellm.apiKey": "sk-...",
 
-  // How often (in seconds) to refresh the status-bar badge. Minimum: 30.
-  "litellm.refreshIntervalSeconds": 300
+  // How often (in seconds) to refresh the status-bar badge. Minimum: 60.
+  "litellm.refreshIntervalSeconds": 300,
+
+  // Soft-budget thresholds (USD) for status-bar visual alerts.
+  // Above the standard threshold → warning style; above the pro threshold → error style.
+  "litellm.softBudgetStandardUsd": 200,
+  "litellm.softBudgetProUsd": 500,
+  "litellm.softBudgetMaxUsd": 1000
 }
 ```
 
 Environment variables (`LITELLM_API_BASE`, `LITELLM_API_KEY`) are read at startup and serve as fallbacks for users who prefer not to store credentials in VS Code settings.
+
+### Build-time admin switch
+
+The dashboard's month-to-date spend chart issues a single `GET /spend/logs?summarize=true` call per user per calendar day (daily-cached, single-flight). For performance-sensitive deployments the feature can be disabled entirely at build time so the extension makes **no** `/spend/logs` call — set `DASHBOARD_BREAKDOWN_ENABLED` to `false` in [`src/constants.ts`](src/constants.ts) before packaging:
+
+```bash
+# Ship a no-breakdown build (no chart, no /spend/logs call)
+sed -i '' 's/DASHBOARD_BREAKDOWN_ENABLED = true/DASHBOARD_BREAKDOWN_ENABLED = false/' src/constants.ts
+npm run package
+```
 
 ---
 
@@ -65,9 +81,9 @@ Environment variables (`LITELLM_API_BASE`, `LITELLM_API_KEY`) are read at startu
 
 | Command | Description |
 |---|---|
-| `LiteLLM: Show Usage Dashboard` | Open the webview spend dashboard |
+| `LiteLLM: Show Usage Dashboard` | Open the webview spend dashboard (budget summary + month-to-date chart) |
 | `LiteLLM: Show Current Spend Details` | Quick-pick spend popup |
-| `LiteLLM: Refresh Status Bar` | Force-refresh the spend badge |
+| `LiteLLM: Refresh Status Bar` | Force-refresh the current budget spend (`/v2/user/info`) immediately |
 
 ---
 
@@ -75,7 +91,7 @@ Environment variables (`LITELLM_API_BASE`, `LITELLM_API_KEY`) are read at startu
 
 ### Prerequisites
 
-- Node.js ≥ 18
+- Node.js ≥ 20.19
 - npm ≥ 9
 
 ### Setup
@@ -102,7 +118,7 @@ npm run lint
 ### Tests
 
 ```bash
-# Unit tests only — no network, no VS Code required (31 tests)
+# Unit tests only — no network, no VS Code required (32 tests)
 npm run test:unit
 
 # Unit + integration tests
