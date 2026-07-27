@@ -248,7 +248,10 @@ function ensureDailySpend(): Promise<DailyPoint[] | undefined> {
       logsFetchDate = today; // do not re-fetch until the next calendar day
       return series;
     } catch (err) {
-      // Don't cache / don't set logsFetchDate → next dashboard open may retry.
+      // Clear any stale cache so the dashboard shows "breakdown unavailable"
+      // instead of old month data. Don't set logsFetchDate → next dashboard
+      // open may retry.
+      logsCache = undefined;
       console.error('LiteLLM dashboard logs fetch failed:', err);
       return undefined;
     } finally {
@@ -341,7 +344,7 @@ async function showSpendDetails(): Promise<void> {
     ...detailItems,
     { label: '', kind: vscode.QuickPickItemKind.Separator },
     {
-      label: '$(graph) Open Usage Dashboard',
+      label: '$(graph) Open Dashboard',
       description: 'View budget summary',
       action: 'showUsage',
     },
@@ -534,6 +537,9 @@ export function activate(context: vscode.ExtensionContext): void {
       ) {
         controller?.clearCache();
         controller?.resetCooldown();
+        logsCache = undefined;
+        logsFetchDate = undefined;
+        logsInFlight = undefined;
         refresh({ force: true }).catch(() => {
           /* handled */
         });
