@@ -452,7 +452,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // or if the breakdown is disabled). A logs failure does NOT block the
       // dashboard — the panel renders the budget summary either way.
       const dailySeries = await ensureDailySpend();
-      UsagePanel.createOrShow(info, dailySeries, conn.apiBase, productName);
+      UsagePanel.createOrShow(info, dailySeries, productName);
     }),
 
     vscode.commands.registerCommand('litellm.showSpendDetails', () => {

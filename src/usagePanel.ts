@@ -13,14 +13,12 @@ export class UsagePanel {
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _productName: string;
-  private readonly _apiBase: string;
   private _dailySeries: DailyPoint[] | undefined;
   private _disposables: vscode.Disposable[] = [];
 
   public static createOrShow(
     info: BudgetInfo,
     dailySeries: DailyPoint[] | undefined,
-    apiBase: string,
     productName: string
   ): void {
     const column = vscode.window.activeTextEditor
@@ -43,18 +41,16 @@ export class UsagePanel {
       }
     );
 
-    UsagePanel.currentPanel = new UsagePanel(panel, info, dailySeries, apiBase, productName);
+    UsagePanel.currentPanel = new UsagePanel(panel, info, dailySeries, productName);
   }
 
   private constructor(
     panel: vscode.WebviewPanel,
     info: BudgetInfo,
     dailySeries: DailyPoint[] | undefined,
-    apiBase: string,
     productName: string
   ) {
     this._panel = panel;
-    this._apiBase = apiBase;
     this._productName = productName;
     this._dailySeries = dailySeries;
 
