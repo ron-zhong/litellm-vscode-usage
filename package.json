@@ -95,13 +95,13 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.1.1",
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
-    "@vscode/test-electron": "^2.4.0",
+    "@vscode/test-electron": "^3.1.0",
     "eslint": "^10.8.0",
-    "mocha": "^11.3.0",
+    "mocha": "^11.7.6",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.65.0"
   }
