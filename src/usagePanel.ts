@@ -18,7 +18,7 @@ export class UsagePanel {
 
   public static createOrShow(
     info: BudgetInfo,
-    dailySeries: DailyPoint[] | undefined,
+    dailySeries: DailyPoint[] | null | undefined,
     productName: string
   ): void {
     const column = vscode.window.activeTextEditor
