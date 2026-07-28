@@ -41,7 +41,7 @@ export class UsagePanel {
       }
     );
 
-    UsagePanel.currentPanel = new UsagePanel(panel, info, dailySeries, productName);
+    UsagePanel.currentPanel = new UsagePanel(panel, info, dailySeries ?? undefined, productName);
   }
 
   private constructor(
