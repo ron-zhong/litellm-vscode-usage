@@ -4,7 +4,7 @@ import {
   fetchSpendLogsSummarized,
   buildDailySeries,
   todayUtcStr,
-  monthStartStr,
+  monthStartOfStr,
   addDayStr,
   BudgetInfo,
   DailyPoint,
