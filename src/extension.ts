@@ -205,8 +205,7 @@ function refresh(opts?: { force?: boolean }): Promise<BudgetInfo | undefined> {
     return Promise.resolve(undefined);
   }
   return controller.refresh(opts).catch((err: unknown) => {
-    // Swallow here; onError already rendered + toasted. Re-throw is handled by
-    // callers that need the value (pop-up, dashboard) via their own await.
+    // onError already rendered + toasted; propagate the error to callers that await refresh().
     throw err;
   });
 }
