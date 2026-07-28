@@ -4,7 +4,7 @@ import type { BudgetInfo } from './litellmClient';
  * A small, VS-Code-independent throttle + single-flight controller around a
  * `fetcher` that returns `BudgetInfo`.
  *
- * Design goals (see PLAN_v1.0.2.md §4–§5):
+ * Design goals (see versions/v1.0.2_PLAN.md §4–§5):
  * - **Cooldown:** once a fetch has settled, do not fetch again until at least
  *   `getIntervalMs()` has elapsed (unless `force: true`).
  * - **Single-flight:** concurrent callers share the same in-flight promise
