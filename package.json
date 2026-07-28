@@ -1,8 +1,9 @@
 {
   "name": "litellm-usage",
   "displayName": "LiteLLM Usage",
-  "description": "Display your LiteLLM daily and monthly LLM usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
-  "version": "0.2.0",
+  "description": "Display your current LiteLLM budget spend and usage in VS Code, and configure VS Code Chat with your LiteLLM endpoint.",
+  "version": "1.0.3",
+  "icon": "media/icon.png",
   "publisher": "litellm",
   "repository": {
     "type": "git",
@@ -38,13 +39,37 @@
         "litellm.apiKey": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "LiteLLM API key. Falls back to LITELLM_API_KEY environment variable."
+        },
+        "litellm.defaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Default model for LiteLLM-powered features. Falls back to LITELLM_DEFAULT_MODEL environment variable."
         },
         "litellm.refreshIntervalSeconds": {
           "type": "number",
           "default": 300,
-          "minimum": 30,
+          "minimum": 60,
           "description": "How often (in seconds) to refresh the spend displayed in the status bar."
+        },
+        "litellm.softBudgetStandardUsd": {
+          "type": "number",
+          "default": 200,
+          "minimum": 0,
+          "description": "Soft budget standard threshold in USD. Above this threshold, the status bar switches to warning style."
+        },
+        "litellm.softBudgetProUsd": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "description": "Soft budget pro threshold in USD. Above this threshold, the status bar switches to error style."
+        },
+        "litellm.softBudgetMaxUsd": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 0,
+          "description": "Soft budget max reference threshold in USD for future budget policy tiers."
         }
       }
     },
@@ -101,7 +126,7 @@
     "@typescript-eslint/parser": "^8.65.0",
     "@vscode/test-electron": "^3.1.0",
     "eslint": "^10.8.0",
-    "mocha": "^11.7.6",
+    "mocha": "11.3.0",
     "typescript": "^5.3.3",
     "typescript-eslint": "^8.65.0"
   }

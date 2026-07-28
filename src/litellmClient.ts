@@ -1,67 +1,67 @@
 import * as https from 'https';
 import * as http from 'http';
 
-export interface UserBudgetInfo {
-  userId: string;
-  maxBudget: number | null;
+const DEFAULT_TIMEOUT_MS = 15000;
+const RETRY_BACKOFF_MS = [1000, 2000];
+
+/**
+ * Normalized budget information fetched from GET /v2/user/info.
+ *
+ * `spend` is the spend accumulated within the user's *current budget window*
+ * (e.g. a rolling 30-day window when `budget_duration=30d`), NOT a calendar
+ * month. Callers should label it accordingly and surface `budgetDuration` /
+ * `budgetResetAt` so the window is never misread.
+ */
+export interface BudgetInfo {
   spend: number;
+  maxBudget: number | null;
   budgetDuration: string | null;
   budgetResetAt: string | null;
+  userAlias: string | null;
+  source: '/v2/user/info';
 }
 
-export interface KeyInfo {
-  key: string;
-  spend: number;
-  tpm_limit: number;
-  rpm_limit: number;
-  maxBudget: number | null;
-  budgetDuration: string | null;
-  budgetResetAt: string | null;
-  key_alias: string | null;
-  models: string[];
+export class LiteLLMHttpError extends Error {
+  public readonly statusCode: number | null;
+  public readonly isTimeout: boolean;
+  public readonly isNetworkError: boolean;
+
+  constructor(message: string, options?: { statusCode?: number | null; isTimeout?: boolean; isNetworkError?: boolean }) {
+    super(message);
+    this.name = 'LiteLLMHttpError';
+    this.statusCode = options?.statusCode ?? null;
+    this.isTimeout = options?.isTimeout ?? false;
+    this.isNetworkError = options?.isNetworkError ?? false;
+  }
 }
 
-export interface UserInfo {
-  userId: string;
-  userInfo: UserBudgetInfo | null;
-  keys: KeyInfo[];
+interface RequestOptions {
+  method: 'GET' | 'POST';
+  apiBase: string;
+  apiKey: string;
+  path: string;
+  body?: unknown;
 }
 
-export interface SpendLogEntry {
-  requestId: string;
-  callType: string;
-  model: string;
-  spend: number;
-  totalTokens: number;
-  promptTokens: number;
-  completionTokens: number;
-  startTime: string;
-  endTime: string;
-  userId: string | null;
+/** Small helper for exponential retry backoff. */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export interface DailySpend {
-  date: string;
-  spend: number;
-  tokens: number;
+/** Returns true only for transient failures covered by requirement retry policy. */
+function shouldRetry(error: unknown): boolean {
+  if (!(error instanceof LiteLLMHttpError)) {
+    return false;
+  }
+  if (error.isTimeout || error.isNetworkError) {
+    return true;
+  }
+  return error.statusCode !== null && error.statusCode >= 500;
 }
 
-export interface ModelSpend {
-  model: string;
-  spend: number;
-  tokens: number;
-  requests: number;
-}
-
-export interface UsageSummary {
-  dailySpend: DailySpend[];
-  modelBreakdown: ModelSpend[];
-  totalMonthlySpend: number;
-  totalDailySpend: number;
-}
-
-/** Perform an authenticated HTTP/HTTPS GET request and return the parsed JSON body. */
-async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promise<T> {
+/** Perform an authenticated HTTP/HTTPS request and return parsed JSON body. */
+async function requestJson<T>(options: RequestOptions): Promise<T> {
+  const { method, apiBase, apiKey, path, body } = options;
   const url = new URL(path.replace(/^\/+/, ''), apiBase.endsWith('/') ? apiBase : apiBase + '/');
   const lib = url.protocol === 'https:' ? https : http;
 
@@ -72,9 +72,12 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
     headers['Authorization'] = 'Bearer ' + apiKey;
   }
 
+  const payload = body !== undefined ? JSON.stringify(body) : undefined;
+
   return new Promise<T>((resolve, reject) => {
-    const req = lib.get(
+    const req = lib.request(
       {
+        method,
         hostname: url.hostname,
         port: url.port || (url.protocol === 'https:' ? 443 : 80),
         path: url.pathname + (url.search || ''),
@@ -86,134 +89,218 @@ async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promis
           data += chunk.toString();
         });
         res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          const status = res.statusCode ?? null;
+          if (status !== null && status >= 400) {
+            reject(new LiteLLMHttpError(`HTTP ${status}: ${data}`, { statusCode: status }));
+            return;
+          }
+          if (!data) {
+            resolve({} as T);
             return;
           }
           try {
             resolve(JSON.parse(data) as T);
           } catch {
-            reject(new Error(`Failed to parse JSON response: ${data}`));
+            reject(new LiteLLMHttpError(`Failed to parse JSON response: ${data}`));
           }
         });
       }
     );
-    req.on('error', reject);
-    req.setTimeout(15000, () => {
-      req.destroy();
-      reject(new Error('Request timed out'));
+
+    req.on('error', (err: NodeJS.ErrnoException) => {
+      reject(
+        new LiteLLMHttpError(err.message, {
+          isNetworkError: true,
+        })
+      );
     });
+
+    req.setTimeout(DEFAULT_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new LiteLLMHttpError('Request timed out', { isTimeout: true }));
+    });
+
+    if (payload) {
+      req.write(payload);
+    }
+    req.end();
   });
 }
 
-/** Fetch current user information including budget and spend. */
-export async function fetchUserInfo(apiBase: string, apiKey: string): Promise<UserInfo> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const raw = await httpGet<any>(apiBase, apiKey, '/user/info');
-
-  const userBudget: UserBudgetInfo | null = raw.user_info
-    ? {
-        userId: raw.user_info.user_id ?? '',
-        maxBudget: raw.user_info.max_budget ?? null,
-        spend: raw.user_info.spend ?? 0,
-        budgetDuration: raw.user_info.budget_duration ?? null,
-        budgetResetAt: raw.user_info.budget_reset_at ?? null,
+/** Retry transient failures (5xx + timeout/network), max 2 retries with 1s/2s backoff. */
+async function requestJsonWithRetry<T>(options: RequestOptions): Promise<T> {
+  for (let attempt = 0; attempt < RETRY_BACKOFF_MS.length; attempt += 1) {
+    try {
+      return await requestJson<T>(options);
+    } catch (error) {
+      if (!shouldRetry(error)) {
+        throw error;
       }
-    : null;
+      await delay(RETRY_BACKOFF_MS[attempt]);
+    }
+  }
 
+  return requestJson<T>(options);
+}
+
+/** Perform an authenticated HTTP/HTTPS GET request and return parsed JSON body. */
+async function httpGet<T>(apiBase: string, apiKey: string, path: string): Promise<T> {
+  return requestJsonWithRetry<T>({
+    method: 'GET',
+    apiBase,
+    apiKey,
+    path,
+  });
+}
+
+/**
+ * Fetch the current budget-window spend and limits from GET /v2/user/info.
+ *
+ * This is the single source of truth for the extension. The `/key/info`
+ * fallback was removed in v1.0.2 per the requirement to use only
+ * `/v2/user/info`; deployments must expose this endpoint.
+ */
+export async function fetchBudgetInfo(apiBase: string, apiKey: string): Promise<BudgetInfo> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const keys: KeyInfo[] = (raw.keys ?? []).map((k: any) => ({
-    key: k.token ?? k.key ?? '',
-    maxBudget: k.max_budget ?? null,
-    spend: k.spend ?? 0,
-    budgetDuration: k.budget_duration ?? null,
-    budgetResetAt: k.budget_reset_at ?? null,
-    models: k.models ?? [],
-  }));
-
+  const raw = await httpGet<any>(apiBase, apiKey, '/v2/user/info');
   return {
-    userId: raw.user_id ?? '',
-    userInfo: userBudget,
-    keys,
+    spend: raw.spend ?? 0,
+    maxBudget: raw.max_budget ?? null,
+    budgetDuration: raw.budget_duration ?? null,
+    budgetResetAt: raw.budget_reset_at ?? null,
+    userAlias: raw.user_alias ?? null,
+    source: '/v2/user/info',
   };
 }
 
-/** Fetch spend logs between two dates (YYYY-MM-DD). */
-export async function fetchSpendLogs(
+// ─── Dashboard month-to-date spend (GET /spend/logs?summarize=true) ───────────
+
+/** One day's aggregated spend from the summarized /spend/logs response. */
+export interface SummarizedDay {
+  date: string; // YYYY-MM-DD
+  spend: number;
+  /** Per-model spend map, e.g. { "gpt-4o": 1.5, "claude-3": 0.3 }. */
+  models: Record<string, number>;
+}
+
+/** One bar in the month-to-date dashboard chart. */
+export interface DailyPoint {
+  date: string; // YYYY-MM-DD
+  spend: number;
+  /** Per-model spend map, e.g. { "gpt-4o": 1.5, "claude-3": 0.3 }. */
+  models: Record<string, number>;
+}
+
+/** Today's date as YYYY-MM-DD (UTC, matching the API's UTC date handling). */
+export function todayUtcStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** First day of the current month as YYYY-MM-DD (UTC). */
+export function monthStartStr(): string {
+  return new Date().toISOString().slice(0, 8) + '01';
+}
+
+/** First day of the month containing `dateStr` as YYYY-MM-DD. */
+export function monthStartOfStr(dateStr: string): string {
+  return dateStr.slice(0, 8) + '01';
+}
+
+/** Date string (YYYY-MM-DD) for `n` days before today (UTC). */
+export function daysAgoStr(n: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Add `n` days to a YYYY-MM-DD date string (UTC), returning YYYY-MM-DD. */
+export function addDayStr(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Fetch daily aggregated spend for a date range via
+ * `GET /spend/logs?start_date=…&end_date=…&summarize=true`.
+ *
+ * The summarized response is one object per day: `{"startTime":"YYYY-MM-DD",
+ * "spend":<num>, "users":{...}, "models":{...}}`, zero-padded for missing days.
+ * We keep `date` (normalized from `startTime`, `start_time`, `date`, or `day`),
+ * `spend`, and `models` (per-model spend map); extra keys are ignored. Used at
+ * most once per user per calendar day (see extension.ts cache).
+ */
+export async function fetchSpendLogsSummarized(
   apiBase: string,
   apiKey: string,
   startDate: string,
   endDate: string
-): Promise<SpendLogEntry[]> {
-  const path = `/spend/logs?start_date=${startDate}&end_date=${endDate}`;
+): Promise<SummarizedDay[]> {
+  const path = `/spend/logs?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}&summarize=true`;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = await httpGet<any[]>(apiBase, apiKey, path);
-
   if (!Array.isArray(raw)) {
     return [];
   }
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return raw.map((entry: any) => ({
-    requestId: entry.request_id ?? '',
-    callType: entry.call_type ?? '',
-    model: entry.model ?? '',
-    spend: entry.spend ?? 0,
-    totalTokens: entry.total_tokens ?? 0,
-    promptTokens: entry.prompt_tokens ?? 0,
-    completionTokens: entry.completion_tokens ?? 0,
-    startTime: entry.startTime ?? entry.start_time ?? '',
-    endTime: entry.endTime ?? entry.end_time ?? '',
-    userId: entry.user ?? null,
+  return raw.map((row: any) => ({
+    date: String(row.startTime ?? row.start_time ?? row.date ?? row.day ?? '').slice(0, 10),
+    spend: Number(row.spend ?? 0),
+    models: normalizeModels(row.models),
   }));
 }
 
-/** Aggregate spend logs into daily and model-level summaries. */
-export function aggregateUsage(logs: SpendLogEntry[]): UsageSummary {
-  const dailyMap = new Map<string, { spend: number; tokens: number }>();
-  const modelMap = new Map<string, { spend: number; tokens: number; requests: number }>();
-
-  for (const log of logs) {
-    const date = (log.startTime || '').slice(0, 10);
-    if (date) {
-      const existing = dailyMap.get(date) ?? { spend: 0, tokens: 0 };
-      dailyMap.set(date, {
-        spend: existing.spend + log.spend,
-        tokens: existing.tokens + log.totalTokens,
-      });
-    }
-
-    const model = log.model || 'unknown';
-    const existingModel = modelMap.get(model) ?? { spend: 0, tokens: 0, requests: 0 };
-    modelMap.set(model, {
-      spend: existingModel.spend + log.spend,
-      tokens: existingModel.tokens + log.totalTokens,
-      requests: existingModel.requests + 1,
-    });
+/** Coerce an unknown `models` field into Record<string, number>. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeModels(models: any): Record<string, number> {
+  if (!models || typeof models !== 'object') {
+    return {};
   }
-
-  const dailySpend: DailySpend[] = Array.from(dailyMap.entries())
-    .map(([date, v]) => ({ date, spend: v.spend, tokens: v.tokens }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-
-  const modelBreakdown: ModelSpend[] = Array.from(modelMap.entries())
-    .map(([model, v]) => ({ model, spend: v.spend, tokens: v.tokens, requests: v.requests }))
-    .sort((a, b) => b.spend - a.spend);
-
-  const today = new Date().toISOString().slice(0, 10);
-  const totalDailySpend = dailyMap.get(today)?.spend ?? 0;
-  const totalMonthlySpend = dailySpend.reduce((sum, d) => sum + d.spend, 0);
-
-  return { dailySpend, modelBreakdown, totalMonthlySpend, totalDailySpend };
+  const result: Record<string, number> = {};
+  for (const [key, val] of Object.entries(models)) {
+    const n = Number(val);
+    if (!isNaN(n) && n !== 0) {
+      result[key] = n;
+    }
+  }
+  return result;
 }
 
-/** Return today's date string (YYYY-MM-DD). */
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/** Return the first day of the current month (YYYY-MM-DD). */
-export function startOfMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+/**
+ * Build a fixed-length daily series for the inclusive range
+ * `startDate` .. `endDate`, 0-filling any day with no data. Result is ordered
+ * oldest → newest (left → right on the chart). Pure / unit-testable.
+ *
+ * Days outside the range are ignored. Multiple rows for the same date have
+ * their spend summed and their per-model spends merged.
+ */
+export function buildDailySeries(
+  days: SummarizedDay[],
+  startDate: string,
+  endDate: string
+): DailyPoint[] {
+  const spendByDate = new Map<string, number>();
+  const modelsByDate = new Map<string, Record<string, number>>();
+  for (const d of days) {
+    if (!d.date) {
+      continue;
+    }
+    spendByDate.set(d.date, (spendByDate.get(d.date) ?? 0) + d.spend);
+    const existing = modelsByDate.get(d.date) ?? {};
+    for (const [model, amt] of Object.entries(d.models)) {
+      existing[model] = (existing[model] ?? 0) + amt;
+    }
+    modelsByDate.set(d.date, existing);
+  }
+  const series: DailyPoint[] = [];
+  let cursor = startDate;
+  while (cursor <= endDate) {
+    series.push({
+      date: cursor,
+      spend: spendByDate.get(cursor) ?? 0,
+      models: modelsByDate.get(cursor) ?? {},
+    });
+    cursor = addDayStr(cursor, 1);
+  }
+  return series;
 }

@@ -1,8 +1,8 @@
 /**
- * Integration tests for litellmClient functions.
+ * Integration tests for fetchBudgetInfo against a live LiteLLM proxy.
  *
- * These tests make real HTTP calls to a running LiteLLM proxy.
- * They are skipped automatically when LITELLM_API_BASE is not set.
+ * These make a real HTTP GET /v2/user/info. They are skipped automatically
+ * when LITELLM_API_BASE is not set.
  *
  * Run with:
  *   LITELLM_API_BASE=http://localhost:4000 \
@@ -10,11 +10,7 @@
  *   npm run test:integration
  */
 import * as assert from 'assert';
-import {
-  fetchUserInfo,
-  fetchSpendLogs,
-  today,
-} from '../../litellmClient';
+import { fetchBudgetInfo } from '../../litellmClient';
 
 const API_BASE = process.env['LITELLM_API_BASE'] ?? '';
 const API_KEY = process.env['LITELLM_API_KEY'] ?? '';
@@ -27,50 +23,34 @@ function skipIfNotConfigured(ctx: Mocha.Context): void {
 }
 
 describe('LiteLLM integration (requires LITELLM_API_BASE)', function () {
-  // Generous timeout for real network calls
+  // Generous timeout for real network calls (incl. retry backoff)
   this.timeout(30000);
 
   before(function () {
     skipIfNotConfigured(this);
   });
 
-  // ── fetchUserInfo ──────────────────────────────────────────────────────────
+  // ── fetchBudgetInfo ───────────────────────────────────────────────────────
 
-  describe('fetchUserInfo', () => {
-    it('returns a UserInfo object with a userId string', async () => {
-      const info = await fetchUserInfo(API_BASE, API_KEY);
-      assert.ok(typeof info.userId === 'string', 'userId should be a string');
-      assert.ok(Array.isArray(info.keys), 'keys should be an array');
+  describe('fetchBudgetInfo', () => {
+    it('returns a BudgetInfo with numeric spend and the v2 source label', async () => {
+      const info = await fetchBudgetInfo(API_BASE, API_KEY);
+      assert.ok(typeof info.spend === 'number', 'spend should be a number');
+      assert.strictEqual(info.source, '/v2/user/info');
     });
 
-    it('returns numeric spend values', async () => {
-      const info = await fetchUserInfo(API_BASE, API_KEY);
-      if (info.userInfo) {
-        assert.ok(typeof info.userInfo.spend === 'number', 'userInfo.spend should be a number');
-      }
-      for (const key of info.keys) {
-        assert.ok(typeof key.spend === 'number', `key.spend should be a number (key: ${key.key})`);
-      }
-    });
-  });
-
-  // ── fetchSpendLogs ─────────────────────────────────────────────────────────
-
-  describe('fetchSpendLogs', () => {
-    it('returns an array (may be empty) for today', async () => {
-      const t = today();
-      const logs = await fetchSpendLogs(API_BASE, API_KEY, t, t);
-      assert.ok(Array.isArray(logs), 'Result should be an array');
-    });
-
-    it('returns entries with the expected fields when logs exist', async () => {
-      const t = today();
-      const logs = await fetchSpendLogs(API_BASE, API_KEY, t, t);
-      for (const log of logs) {
-        assert.ok(typeof log.requestId === 'string', 'requestId must be a string');
-        assert.ok(typeof log.model === 'string', 'model must be a string');
-        assert.ok(typeof log.spend === 'number', 'spend must be a number');
-      }
+    it('returns null or number for maxBudget and optional budget fields', async () => {
+      const info = await fetchBudgetInfo(API_BASE, API_KEY);
+      assert.ok(
+        info.maxBudget === null || typeof info.maxBudget === 'number',
+        'maxBudget should be null or a number'
+      );
+      assert.ok(
+        info.budgetDuration === null || typeof info.budgetDuration === 'string'
+      );
+      assert.ok(
+        info.budgetResetAt === null || typeof info.budgetResetAt === 'string'
+      );
     });
   });
 });
