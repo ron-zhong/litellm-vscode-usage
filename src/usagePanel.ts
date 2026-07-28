@@ -256,7 +256,7 @@ export class UsagePanel {
   .y-tick { position: absolute; left: 0; right: 0; display: flex; align-items: center; height: 0; }
   .y-tick-label { font-size: 0.65em; color: var(--vscode-descriptionForeground, #888); white-space: nowrap; padding-right: 4px; width: 52px; text-align: right; }
   .y-tick-line { flex: 1; border-top: 1px solid var(--vscode-panel-border, #444); opacity: 0.5; }
-  .bars { display: flex; align-items: flex-end; gap: 2px; height: 200px; flex: 1; border-bottom: 1px solid var(--vscode-panel-border, #444); border-left: 1px solid var(--vscode-panel-border, #444); padding: 0 0 0 0; position: relative; }
+  .bars { display: flex; align-items: flex-end; gap: 2px; height: 200px; flex: 1; border-bottom: 1px solid var(--vscode-panel-border, #444); border-left: 1px solid var(--vscode-panel-border, #444); padding: 0 0 0 0; position: relative; background-image: repeating-linear-gradient(to top, transparent 0, transparent calc(25% - 1px), var(--vscode-panel-border, #444) calc(25% - 1px), var(--vscode-panel-border, #444) 25%); }
   .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; min-width: 0; cursor: default; }
   .bar { width: 100%; background: var(--vscode-charts-blue, var(--vscode-textLink-foreground, #4fc1ff)); border-radius: 2px 2px 0 0; transition: opacity 0.15s; }
   .bar-col:hover .bar { opacity: 0.7; }
