@@ -62,7 +62,7 @@ code --install-extension litellm-usage-*.vsix
 
 ## Configuration
 
-Open **Settings → Extensions → LiteLLM Usage** or add the following to your `settings.json`:
+Open **User Settings → Extensions → LiteLLM Usage** or add the following to your **User** `settings.json` (do not add connection settings to a workspace's `.vscode/settings.json`):
 
 ```jsonc
 {
